@@ -1,0 +1,98 @@
+{
+  "name": "server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "common": "*",
+    "@sapphire/snowflake": "^3.5.5",
+    "@vue/reactivity": "^3.5.42",
+    "electron-log": "^5.4.4",
+    "electron-store": "^11.0.2",
+    "lru-cache": "^11.5.1",
+    "playwright-core": "^1.59.1",
+    "semver": "^7.8.5",
+    "sequelize": "^6.37.8",
+    "sqlite3": "^6.0.1",
+    "superjson": "^2.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/tsconfig": "^0.9.1",
+    "electron-vite": "^6.0.0-beta.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0",
+    "vue-tsc": "^3.3.11"
+  },
+  "build": {
+    "icon": "logo/favicon",
+    "asar": true,
+    "copyright": "Copyright © 2026 Carzy",
+    "directories": {
+      "output": "release/${version}"
+    },
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
+    ],
+    "extraResources": [
+      {
+        "from": "public",
+        "to": "public"
+      },
+      {
+        "from": "logo/favicon.ico",
+        "to": "logo/favicon.ico"
+      }
+    ],
+    "files": [
+      "dist",
+      "dist-electron",
+      "!dist-electron/user-data",
+      "!dist-electron/database.sqlite"
+    ],
+    "mac": {
+      "icon": "logo/favicon.icns",
+      "artifactName": "${productName}_${version}.${ext}",
+      "target": [
+        "dmg"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "logo/favicon.png",
+      "category": "Utility",
+      "artifactName": "${productName}_${version}.${ext}"
+    },
+    "win": {
+      "icon": "logo/favicon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}_${version}.${ext}"
+    },
+    "nsis": {
+      "installerIcon": "logo/favicon.ico",
+      "uninstallerIcon": "logo/favicon.ico",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "executableName": "mellifera"
+  }
+}

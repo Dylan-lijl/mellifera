@@ -1,0 +1,33 @@
+{
+  "name": "mellifera",
+  "version": "1.0.0",
+  "description": "",
+  "private": true,
+  "scripts": {
+    "dev:all": "concurrently --kill-others --raw \"npm run dev -w render -- --force\" \"wait-on http://localhost:5174 && npm run start -w server\"",
+    "build:renderer": "npm run build -w renderer",
+    "build:desktop": "npm run build -w desktop",
+    "build:all": "npm run build:renderer && npm run build:desktop"
+  },
+  "workspaces": [
+    "server",
+    "render",
+    "common"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "electron": "39.8.10",
+    "tsc-alias": "^1.8.17",
+    "typescript": "~6.0.2",
+    "wait-on": "^9.0.5"
+  },
+  "dependencies": {
+    "lru-cache": "^11.5.1",
+    "superjson": "^2.2.6",
+    "zod": "^4.4.3"
+  },
+  "node": ">=22.12.0",
+  "keywords": [],
+  "author": "",
+  "license": "MIT"
+}
