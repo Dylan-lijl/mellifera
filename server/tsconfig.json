@@ -3,19 +3,25 @@
   "compilerOptions": {
     "outDir": "./dist-electron",
     "rootDir": "./src",
+    "emitDeclarationOnly": true,
     "allowImportingTsExtensions": false,
     "lib": [
       "ES2023"
     ],
     "moduleResolution": "Bundler",
     "strict": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "declaration": true,
+    "skipLibCheck": true,
     "types": [
       "node"
     ],
     "paths": {
       "@/*": [
         "./src/*"
-      ]
+      ],
+      "@common/*": ["../common/src/*"]
     }
   },
   "include": [

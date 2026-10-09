@@ -2,7 +2,6 @@ import {defineConfig} from 'electron-vite'
 import {resolve} from 'path'
 
 const alias = {
-    '@app/common': resolve(__dirname, '../common/src'),
     '@': resolve(__dirname, 'src'),
 }
 
@@ -18,7 +17,8 @@ export default defineConfig((_config) => {
                 externalizeDeps: true,
                 outDir,
                 emptyOutDir: true,
-                rollupOptions: {
+                sourcemap: true,
+                rolldownOptions: {
                     input: resolve(__dirname, 'src/main.ts'),
                     output: {
                         entryFileNames: 'main.js',
@@ -32,7 +32,7 @@ export default defineConfig((_config) => {
                 externalizeDeps: true,
                 outDir,
                 emptyOutDir: false,
-                rollupOptions: {
+                rolldownOptions: {
                     input: resolve(__dirname, 'src/preload.ts'),
                     output: {
                         format: 'cjs',
