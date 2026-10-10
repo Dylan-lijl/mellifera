@@ -31,7 +31,7 @@
           />
 
           <n-button
-              text
+              quaternary
               type="error"
               :loading="requesting.remove.has(line.key)"
               @click="deleteSetting(line.key)"
@@ -57,8 +57,6 @@ const store = useStore()
 const data = ref<{ key: string; value: unknown }[]>([])
 
 async function reloadSetting() {
-  const d: any = await store.store.getAll().get();
-  data.value = d;
   data.value = await store.store.getAll().get() as any;
 }
 
