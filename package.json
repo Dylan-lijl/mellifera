@@ -6,9 +6,9 @@
   "scripts": {
     "dev:all": "npm run build -w @mellifera/common && node dev-all.mjs",
     "build:common": "npm run build -w @mellifera/common",
-    "build:renderer": "npm run build -w renderer",
-    "build:desktop": "npm run build -w desktop",
-    "build:all": "npm run build:common && npm run build:renderer && npm run build:desktop"
+    "build:renderer": "npm run build -w render",
+    "build:desktop": "npm run build -w server",
+    "build:all": "npm run build:common && npm run build:render && npm run build:server"
   },
   "workspaces": [
     "server",

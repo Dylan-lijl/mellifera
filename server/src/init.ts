@@ -32,7 +32,7 @@ export default async function (){
             callback({
                 responseHeaders: {
                     ...details.responseHeaders,
-                    'Content-Security-Policy': ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';"]
+                    'Content-Security-Policy': ["default-src 'self';img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline';"]
                 }
             });
         });

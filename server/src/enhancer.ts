@@ -43,7 +43,7 @@ export function wrapperResultMethod<T>(handler: Handler<T>): Handler<Result<T>> 
         }
         return {...SYSTEM_ERROR};
     }
-    return (_event, ...args) => {
+    return (...args) => {
         try {
             let result = handler(...args);
             if (isPromise(result)) {
@@ -60,60 +60,58 @@ export function wrapperResultMethod<T>(handler: Handler<T>): Handler<Result<T>> 
  * 日志
  * 根据级别和前后打印对应内容
  */
-export function logMethod() {
-    return <T>(handler: Handler<T>): Handler<T> => {
-        return (...args) => {
-            const start = Date.now();
-            const now = new Date();
-            const info = {
-                time:
-                    `${now.getFullYear()}-` +
-                    `${String(now.getMonth() + 1).padStart(2, "0")}-` +
-                    `${String(now.getDate()).padStart(2, "0")} ` +
-                    `${String(now.getHours()).padStart(2, "0")}:` +
-                    `${String(now.getMinutes()).padStart(2, "0")}:` +
-                    `${String(now.getSeconds()).padStart(2, "0")}`,
-                duration: 0,
-                request: null as any,
-                response: null as any,
-                error: null as any,
-            };
-            info.request = args.length === 1 ? args[0] : args
-            const finish = () => {
-                info.duration = Date.now() - start;
-                logger.log(
-                    util.inspect(info, {
-                        depth: null,
-                        compact: true,
-                        breakLength: Infinity,
-                        colors: true,
-                    })
-                );
-            };
-            try {
-                const result = handler(...args);
-                if (isPromise(result)) {
-                    return result
-                        .then(res => {
-                            info.response = res;
-                            return res;
-                        })
-                        .catch(err => {
-                            info.error = err;
-                            throw err;
-                        })
-                        .finally(finish);
-                }
-                info.response = result;
-                finish();
-                return result;
-
-            } catch (err) {
-                info.error = err;
-                finish();
-                throw err;
-            }
+export function logMethod<T>(handler: Handler<T>): Handler<T>{
+    return (...args) => {
+        const start = Date.now();
+        const now = new Date();
+        const info = {
+            time:
+                `${now.getFullYear()}-` +
+                `${String(now.getMonth() + 1).padStart(2, "0")}-` +
+                `${String(now.getDate()).padStart(2, "0")} ` +
+                `${String(now.getHours()).padStart(2, "0")}:` +
+                `${String(now.getMinutes()).padStart(2, "0")}:` +
+                `${String(now.getSeconds()).padStart(2, "0")}`,
+            duration: 0,
+            request: null as any,
+            response: null as any,
+            error: null as any,
         };
+        info.request = args.length === 1 ? args[0] : args
+        const finish = () => {
+            info.duration = Date.now() - start;
+            logger.log(
+                util.inspect(info, {
+                    depth: null,
+                    compact: true,
+                    breakLength: Infinity,
+                    colors: true,
+                })
+            );
+        };
+        try {
+            const result = handler(...args);
+            if (isPromise(result)) {
+                return result
+                    .then(res => {
+                        info.response = res;
+                        return res;
+                    })
+                    .catch(err => {
+                        info.error = err;
+                        throw err;
+                    })
+                    .finally(finish);
+            }
+            info.response = result;
+            finish();
+            return result;
+
+        } catch (err) {
+            info.error = err;
+            finish();
+            throw err;
+        }
     };
 }
 

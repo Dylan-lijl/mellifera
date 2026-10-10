@@ -3,6 +3,7 @@ import service from "@/service";
 import {ipcMain} from "electron";
 import {ApiPathValue, ApiDefinition, type ApiPath} from '@mellifera/common/api'
 import {isApiMethod} from '@mellifera/common/api/definition'
+import {deepToRaw} from "@/utils";
 
 function registerService(
     definition: any,
@@ -17,9 +18,7 @@ function registerService(
             if (typeof finalHandler !== "function") {
                 throw new Error(`Missing IPC handler: ${path}`);
             }
-            ipcMain.handle(path, (_event, ...args) =>
-                finalHandler(...args)
-            );
+            ipcMain.handle(path, async (_event, ...args) => deepToRaw(await finalHandler(...args)));
         } else {
             registerService(api, paths[key], handlers[key]);
         }

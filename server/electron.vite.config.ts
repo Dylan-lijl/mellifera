@@ -29,7 +29,7 @@ export default defineConfig((_config) => {
         },
         preload: {
             build: {
-                externalizeDeps: true,
+                externalizeDeps: false,
                 outDir,
                 emptyOutDir: false,
                 rolldownOptions: {
@@ -37,8 +37,8 @@ export default defineConfig((_config) => {
                     output: {
                         format: 'cjs',
                         entryFileNames: 'preload.js'
-                    }
-                }
+                    },
+                },
             },
             resolve: {alias}
         },

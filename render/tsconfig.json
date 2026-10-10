@@ -1,6 +1,7 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
+    "rootDir": "./",
     "allowImportingTsExtensions": false,
     "lib": [
       "ES2023"

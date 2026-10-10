@@ -18,9 +18,7 @@ function createApiClient(
             if (typeof path !== "string") {
                 throw new Error(`Invalid API path: ${key}`);
             }
-
-            result[key] = (...args: unknown[]) =>
-                ipcRenderer.invoke(path, ...args);
+            result[key] = async (...args: unknown[]) => await ipcRenderer.invoke(path, ...args);
         } else if (
             typeof node === "object" &&
             node !== null &&

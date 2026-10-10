@@ -9,9 +9,6 @@ import {
 import {ApiDefinition, type ApiClient} from "@mellifera/common/api";
 import {RequestChainImpl} from "./RequestChainImpl";
 import type {RequestChain} from "@mellifera/common/types";
-import {useMessage} from 'naive-ui'
-
-const m = useMessage()
 
 export interface ApiMethodState {
     requesting: Set<LoadingKey>;
@@ -41,9 +38,9 @@ function createApiState<T extends object>(definition: T): ApiState<T> {
 }
 
 type ApiActions<T> = {
-    [K in keyof T as T[K] extends ApiMethodNode<any> ? K : K]:
+    [K in keyof T]:
     T[K] extends ApiMethodNode<infer M>
-        ? () => RequestChain<M>
+        ? (...args: Parameters<M>) => RequestChain<M>
         : T[K] extends object
             ? ApiActions<T[K]>
             : never;
@@ -65,15 +62,17 @@ function createActions<D extends object>(
 
         if (isApiMethod(node)) {
             const methodState = state as ApiMethodState;
-            result[key] = () => new RequestChainImpl(
-                node,
-                invoker as AnyMethod,
-                {
-                    requesting: methodState.requesting,
-                    showSuccessMessage,
-                    showErrorMessage,
-                },
-            );
+            result[key] = (...args: Parameters<AnyMethod>) =>
+                new RequestChainImpl(
+                    node,
+                    invoker as AnyMethod,
+                    {
+                        requesting: methodState.requesting,
+                        showSuccessMessage,
+                        showErrorMessage,
+                    },
+                    args,
+                );
         } else if (typeof node === "object" && node !== null) {
             result[key] = createActions(
                 node,
@@ -89,8 +88,19 @@ function createActions<D extends object>(
 }
 
 export const useStore = defineStore("main", () => {
+    const m = window.$message;
     const state = reactive({
         apiState: createApiState(ApiDefinition),
+        data: {
+            system: {
+                windowTitle: "",
+                canGoBack: false,
+                canGoForward: false,
+                alwaysOnTop: false,
+                closing: false
+            },
+            appInfo: null as any,
+        },
     });
     const actions = createActions(
         ApiDefinition,
@@ -101,6 +111,12 @@ export const useStore = defineStore("main", () => {
     );
     return {
         ...toRefs(state),
-        ...actions
+        ...actions,
+        setWindowTitle(title: string) {
+            state.data.system.windowTitle = title;
+        },
+        async init() {
+
+        }
     };
 });
