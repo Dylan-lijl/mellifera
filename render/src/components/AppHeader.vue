@@ -35,7 +35,7 @@ onMounted(async () => {
 <template>
   <div class="app-header">
     <div style="display: flex;align-items: center">
-      <img width="16" height="16" style="display: inline-block;margin: 0 5px 0 8px" src="~@/assets/icon/favicon.png"
+      <img style="display: inline-block;margin: 0 5px 0 8px" src="~@/assets/icon/favicon-16.png"
            :alt="windowTitle"/>
       <span style="font-size: 14px">{{ windowTitle }}</span>
     </div>

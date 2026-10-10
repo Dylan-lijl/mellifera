@@ -4,7 +4,6 @@ import {ipcMain} from "electron";
 import {ApiPathValue, ApiDefinition, type ApiPath} from '@mellifera/common/api'
 import {isApiMethod} from '@mellifera/common/api/definition'
 import {deepToRaw} from "@/utils";
-
 function registerService(
     definition: any,
     paths: any,

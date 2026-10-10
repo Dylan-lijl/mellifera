@@ -1,9 +1,10 @@
 {
   "name": "server",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0-alpha.1",
   "type": "module",
   "main": "dist-electron/main.js",
+  "productName": "mellifera",
   "scripts": {
     "start": "electron-vite dev",
     "build": "electron-vite build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://repo.huaweicloud.com/electron-builder-binaries/ electron-builder"

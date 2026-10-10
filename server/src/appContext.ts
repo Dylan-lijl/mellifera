@@ -23,6 +23,7 @@ export default {
         return map.quit;
     }
 }
+app.setName(process.env.PRODUCT_NAME!);
 export const appInfo: AppInfo = {
     name: app.getName(),
     version: app.getVersion(),

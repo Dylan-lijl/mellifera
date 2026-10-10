@@ -1,5 +1,6 @@
 import {defineConfig} from 'electron-vite'
 import {resolve} from 'path'
+import {loadEnv} from "vite";
 
 const alias = {
     '@': resolve(__dirname, 'src'),
@@ -7,7 +8,8 @@ const alias = {
 
 const outDir = resolve(__dirname, 'dist-electron')
 
-export default defineConfig((_config) => {
+export default defineConfig(({mode}) => {
+    Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
     return {
         main: {
             electron: {

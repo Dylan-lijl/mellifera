@@ -86,7 +86,7 @@ function stopAll(code = 0) {
     }
 }
 
-function watchCriticalProcess(child, name) {
+function watchCriticalProcess(child) {
     if (!child) return;
     child.once("exit", (code, signal) => {
         if (stopping) return;
@@ -105,7 +105,7 @@ const render = run(
     ["run", "dev", "-w", "render", "--", "--force"],
     "RENDER",
 );
-watchCriticalProcess(render, "RENDER");
+watchCriticalProcess(render);
 // 2. 等待 Vite 就绪
 const waiter = run(
     npx,
@@ -127,6 +127,6 @@ if (waiter) {
             ["run", "start", "-w", "server"],
             "SERVER",
         );
-        watchCriticalProcess(server, "SERVER");
+        watchCriticalProcess(server);
     });
 }
