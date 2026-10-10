@@ -4,7 +4,7 @@
   "version": "1.0.0-alpha.1",
   "type": "module",
   "main": "dist-electron/main.js",
-  "productName": "mellifera",
+  "productName": "pub.carzy.mellifera",
   "scripts": {
     "start": "electron-vite dev",
     "build": "electron-vite build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://repo.huaweicloud.com/electron-builder-binaries/ electron-builder"
@@ -36,6 +36,7 @@
   "build": {
     "icon": "logo/favicon",
     "asar": true,
+    "appId": "${productName}",
     "copyright": "Copyright © 2026 Carzy",
     "directories": {
       "output": "release/${version}"

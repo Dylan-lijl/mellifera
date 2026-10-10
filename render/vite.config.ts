@@ -1,4 +1,4 @@
-import {defineConfig, loadEnv} from 'vite'
+import {defineConfig} from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 import CustomComponentName from './vite-plugin-component-name.js';
@@ -9,8 +9,7 @@ import Components from 'unplugin-vue-components/vite'
 import {NaiveUiResolver} from 'unplugin-vue-components/resolvers'
 // 💡 动态扫描 Element Plus 所有的样式组件入口
 // https://vite.dev/config/
-export default defineConfig(({mode}) => {
-    const env = loadEnv(mode, process.cwd());
+export default defineConfig(() => {
     return {
         base: './',
         plugins: [
