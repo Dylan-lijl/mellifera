@@ -1,0 +1,25 @@
+import {CreateConnectionRequest} from "./entity";
+import {StateData} from "./stateSync";
+
+export function createConnection(): CreateConnectionRequest {
+    return {
+        name: '未命名',
+        host: '',
+        port: 9913,
+        token: '',
+        enabled: true,
+        description: '',
+    }
+}
+
+export function createSyncState(): StateData {
+    return {
+        system: {
+            alwaysOnTop: false,
+            closing: false,
+            canGoBack: false,
+            canGoForward: false,
+            maximize:false,
+        },
+    }
+}

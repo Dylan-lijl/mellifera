@@ -1,9 +1,10 @@
 import {defineApiHandler, SystemApiDefinition} from '@mellifera/common/api'
-import {clearCacheAndForcefullyReload, hardReload, listenKeys, storeKeys, type ReloadType} from '@mellifera/common/constant'
-import appContext, {sendListener, appInfo} from "@/appContext";
+import {clearCacheAndForcefullyReload, hardReload, storeKeys, type ReloadType} from '@mellifera/common/constant'
+import appContext, {appInfo} from "@/appContext";
 import store from "@/utils/Store";
 import {dialog, shell} from "electron";
 import fs from "fs";
+import StateSyncManager from "@/StateSyncManager";
 
 
 const service = defineApiHandler(SystemApiDefinition, {
@@ -27,9 +28,7 @@ const service = defineApiHandler(SystemApiDefinition, {
     setAlwaysOnTop: (value) => {
         const win = appContext.getMainWindow();
         win?.setAlwaysOnTop(value, "pop-up-menu")
-        sendListener(win, {
-            key: listenKeys.alwaysOnTop, value: win?.isAlwaysOnTop()
-        });
+        StateSyncManager.getState().system.alwaysOnTop = !!(win?.isAlwaysOnTop())
     },
     getAppInfo: () => {
         return appInfo;
@@ -71,6 +70,7 @@ const service = defineApiHandler(SystemApiDefinition, {
         } else {
             w?.maximize();
         }
+        StateSyncManager.getState().system.maximize = !!(w?.isMaximized())
     },
     refresh: async (type: ReloadType) => {
         const contents = appContext.getMainWindow()?.webContents;

@@ -4,10 +4,6 @@ import {router} from "@/router";
 
 export async function init() {
     const store = useStore();
-    /*window.api.onChangeListener.method((msg: IpcMessage) => {
-        store.updateState(msg.key, msg.value);
-    });*/
-
     await store.init();
     await nextTick(async () => {
         store.data.appInfo = await store.system.getAppInfo().get();

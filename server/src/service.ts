@@ -4,6 +4,7 @@ import {deleteData, getAll, getData, saveData} from "@/utils/Store";
 import enhancer from "@/enhancer";
 import {defineApiHandler, ApiDefinition,type ApiHandler} from '@mellifera/common/api'
 import {isApiMethod, type ApiMethodNode, type WrapperName, type AnyMethod,} from "@mellifera/common/api/definition";
+import service from "@/modules/service";
 
 /**
  * 增强方法,根据定义的wrappers数组来包装目标方法
@@ -65,5 +66,5 @@ export default transformHandlers(ApiDefinition,
             getData,
             deleteData,
         },
-        service: {}
+        service
     }));

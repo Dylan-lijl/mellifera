@@ -6,6 +6,7 @@ import path from "path";
 import {getData, saveData} from "@/utils/Store";
 import appContext, {appInfo} from "@/appContext";
 import { devConfig } from "../../dev.config.mjs";
+import StateSyncManager from "@/StateSyncManager";
 export default async function (){
     let win: BrowserWindow;
     let tray: Tray | null = null;
@@ -60,6 +61,11 @@ export default async function (){
         win.webContents.on('did-navigate-in-page', () => {
             updateNavState(win);
         });
+        win.on("ready-to-show",()=>{
+            updateNavState(win);
+            StateSyncManager.getState().system.maximize = win.isMaximized();
+        })
+
     }
 
     function createWindow() {
@@ -119,7 +125,8 @@ export default async function (){
     }
 
     function updateNavState(win: BrowserWindow) {
-        win
+        StateSyncManager.getState().system.canGoBack = !!(win?.webContents.navigationHistory.canGoBack())
+        StateSyncManager.getState().system.canGoForward = !!(win?.webContents.navigationHistory.canGoForward())
     }
 
     function createTray() {

@@ -3,6 +3,8 @@ import {ipcRenderer} from "electron";
 import {isApiMethod,} from "@mellifera/common/api/definition";
 import {type ApiClient, ApiDefinition, ApiPathValue,} from "@mellifera/common/api";
 import {contextBridge} from "electron";
+import type {StateChangeMessage, StateData, StateSnapshot, StateSyncApi} from "@mellifera/common/stateSync";
+import {syncChange, syncSnapshot} from "@mellifera/common/constant";
 
 function createApiClient(
     definition: Record<string, unknown>,
@@ -40,3 +42,21 @@ contextBridge.exposeInMainWorld("api", createApiClient(
         ApiPathValue as Record<string, unknown>,
     ) as ApiClient<typeof ApiDefinition>
 );
+const stateSyncApi: StateSyncApi = {
+    getSnapshot(): Promise<StateSnapshot<StateData>> {
+        return ipcRenderer.invoke(syncSnapshot);
+    },
+
+    subscribe(callback: (message: StateChangeMessage) => void) {
+        const listener = (
+            _event: Electron.IpcRendererEvent,
+            message: StateChangeMessage,
+        ) => callback(message);
+        ipcRenderer.on(syncChange, listener);
+        return () => {
+            ipcRenderer.removeListener(syncChange, listener);
+        };
+    },
+};
+
+contextBridge.exposeInMainWorld('syncApi', stateSyncApi);

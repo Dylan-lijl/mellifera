@@ -27,7 +27,7 @@
               </n-breadcrumb-item>
             </n-breadcrumb>
           </header>
-          <main class="layout-content">
+          <main class="layout-content" :class="contentContainer">
             <router-view v-slot="{ Component, route }">
               <keep-alive :include="cachedViews">
                 <component :is="Component" :key="route.fullPath"/>
@@ -46,7 +46,7 @@ import {useRouter, useRoute} from 'vue-router';
 import {NIcon, useMessage} from 'naive-ui'
 import type {MenuOption} from 'naive-ui'
 import AppHeader from "@/components/AppHeader.vue";
-
+import {contentContainer} from "@mellifera/common/constant";
 const router = useRouter();
 const route = useRoute();
 const canBack = ref(false);

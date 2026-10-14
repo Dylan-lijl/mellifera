@@ -5,6 +5,14 @@ import {
 } from "./definition"
 import {type AppInfo} from "../types";
 import type {ReloadType} from "../constant";
+import {
+    CreateConnectionRequest, DeleteByIdRequest, EnabledRequest,
+    FindByIdRequest,
+    InfoConnectionResponse,
+    ListConnectionResponse,
+    SearchAndPageRequest, UpdateConnectionRequest
+} from "../entity";
+import {PageData} from "../Result";
 
 const systemWrapper: WrapperName[] = ["resultWrapper"];
 export const SystemApiDefinition = {
@@ -25,6 +33,21 @@ export const SystemApiDefinition = {
     statusList: method<() => void>({wrappers: systemWrapper}),
 } as const
 const storeWrapper: WrapperName[] = ["resultWrapper", "logWrapper"];
+const commonWrapper: WrapperName[] = ["resultWrapper", "logWrapper"];
+export const ConnectionApiDefinition = {
+    searchAndPage: method<(request: SearchAndPageRequest) => Promise<PageData<ListConnectionResponse>>>({wrappers: commonWrapper}),
+    getById: method<(request: FindByIdRequest) => Promise<InfoConnectionResponse>>({wrappers: commonWrapper}),
+    create: method<(request: CreateConnectionRequest) => Promise<number>>({wrappers: commonWrapper}),
+    update: method<(request: UpdateConnectionRequest) => Promise<void>>({
+        wrappers: commonWrapper,
+        loading: (request) => request.id
+    }),
+    delete: method<(request: DeleteByIdRequest) => Promise<void>>({wrappers: commonWrapper,loading: (request) => request.id}),
+    enable: method<(request: EnabledRequest) => Promise<void>>({wrappers: commonWrapper,loading: (request) => request.id}),
+}
+export const ServiceApiDefinition = {
+    connection: ConnectionApiDefinition
+}
 export const ApiDefinition = {
     system: SystemApiDefinition,
     store: {
@@ -33,10 +56,9 @@ export const ApiDefinition = {
         deleteData: method<(key: string) => void>({wrappers: storeWrapper}),
         getAll: method<() => Record<string, unknown>[]>({wrappers: storeWrapper}),
     },
-    service: {},
-} as const
+    service: ServiceApiDefinition,
+} as const;
 type AnyMethod = (...args: any[]) => any;
-
 type ApiMethodDefinition<T extends AnyMethod> = {
     readonly method: T;
     readonly loading?: (...args: Parameters<T>) => string | number | readonly (string | number)[];
@@ -56,6 +78,7 @@ export function defineApiHandler<T>(
 ): ApiHandler<T> {
     return handler;
 }
+
 export type ApiClient<T> = {
     [K in keyof T]:
     T[K] extends ApiMethodDefinition<infer M>

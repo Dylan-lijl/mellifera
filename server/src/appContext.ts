@@ -1,13 +1,7 @@
 import {app, type BrowserWindow} from "electron";
 import type {AppInfo} from "@mellifera/common/types";
-import {deepToRaw} from "@/utils";
-import type {SendListenerValue} from "@/types";
 
 let map: { win?: BrowserWindow, quit?: () => any } = {};
-
-export function sendListener(win: BrowserWindow, param: SendListenerValue) {
-    win.webContents.send("onChangeListener", deepToRaw(param));
-}
 
 export default {
     setMainWindow(win: BrowserWindow) {

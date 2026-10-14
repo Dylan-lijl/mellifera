@@ -18,6 +18,10 @@
       "types": "./dist/api/*.d.ts",
       "import": "./dist/api/*.js"
     },
+    "./entity": {
+      "types": "./dist/entity/index.d.ts",
+      "import": "./dist/entity/index.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"
@@ -29,7 +33,6 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
   "dependencies": {
     "zod": "^4.6.5"
   },

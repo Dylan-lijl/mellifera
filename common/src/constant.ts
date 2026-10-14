@@ -9,6 +9,9 @@ export type StoreKey = keyof typeof storeKeys;
 export const listenKeys = {
     alwaysOnTop: "alwaysOnTop",
 }
+export const contentContainer = "content-container";
+export const syncSnapshot = "syncSnapshot";
+export const syncChange = "syncChange";
 export type ListenKeyType = keyof typeof listenKeys;
 export type ListenValueType = typeof listenKeys[ListenKeyType];
 export const normalReload = {label: '正常重新加载', value: 1, enabled: true}
