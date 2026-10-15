@@ -19,6 +19,22 @@ export const hardReload = {label: '硬性重新加载', value: 2, enabled: true}
 export const clearCacheAndForcefullyReload = {label: '清空缓存并硬性重新加载', value: 3, enabled: true}
 export const reloadOptions = [normalReload, hardReload, clearCacheAndForcefullyReload] as const;
 export type ReloadType = typeof reloadOptions[number]["value"];
+export const networkType = {
+    all: {label: "所有网卡", value: 1, enabled: true},
+    selected: {label: "指定网卡", value: 2, enabled: true},
+    loopback: {label: "仅本机", value: 3, enabled: true}
+} as const;
+export const networkTypeOptions = Object.values(networkType);
+export type NetworkType = typeof networkTypeOptions[number]["value"];
+export const runState = {
+    idle: {label: '空闲', value: 1, enabled: true, type: "default"},
+    starting: {label: '启动中', value: 2, enabled: true, type: "warning"},
+    running: {label: '已运行', value: 3, enabled: true, type: "success"},
+    stopping: {label: '停止中', value: 4, enabled: true, type: "error"},
+} as const
+export const runStateOptions = Object.values(runState);
+export type RunStateType = typeof runStateOptions[number]["value"];
+//==================================================================
 export const updateLogs = [{
     createTime: new Date(1791710263046),
     title: '初始化',

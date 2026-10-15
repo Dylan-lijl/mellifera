@@ -33,7 +33,7 @@ await init()
 registerService(ApiDefinition, ApiPathValue, service);
 //注册快照回调
 ipcMain.handle(syncSnapshot, async (_event) => {
-    return StateSyncManager.getRawState()
+    return StateSyncManager.getSnapshot()
 });
 //初始化数据库
 await initDatabase()

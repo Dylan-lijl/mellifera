@@ -91,7 +91,6 @@ onMounted(async () => {
               quaternary
               circle
               :type="store.syncData.system.alwaysOnTop ? 'primary' : 'default'"
-              style="margin-right: 5px"
               @click="store.system.setAlwaysOnTop(!store.syncData.system.alwaysOnTop).get()"
           >
             <template #icon>
@@ -116,7 +115,6 @@ onMounted(async () => {
         <n-button
             quaternary
             type="default"
-            style="margin-right: 5px"
             @click="()=>store.system.minimize().get()"
         >
             <template #icon>
@@ -126,7 +124,6 @@ onMounted(async () => {
         <n-button
             type="default"
             quaternary
-            style="margin-right: 5px"
             @click="()=>store.system.maximize().get()"
         >
             <template #icon>
@@ -137,7 +134,6 @@ onMounted(async () => {
         <n-button
             type="default"
             quaternary
-            style="margin-right: 5px"
             @click="()=>store.system.close().get()"
         >
             <template #icon>

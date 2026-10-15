@@ -1,5 +1,6 @@
 import type {AnyMethod} from "./api/definition";
 import {type Result} from "./Result";
+import {NetworkType} from "./constant";
 
 export interface AppInfo {
     name: string,
@@ -32,6 +33,22 @@ export interface AppPath {
     crashDumps: string,
     //应用路径
     appPath: string,
+}
+export interface NetworkIpInfo {
+    /** 网卡名称 */
+    name: string
+    /** IP 地址 */
+    address: string
+    /** IP 协议版本 */
+    family: 4 | 6
+    /** 是否为内部回环地址 */
+    internal: boolean
+    /** 子网掩码 */
+    netmask: string
+    /** CIDR 前缀长度 */
+    cidr: number | null
+    /** MAC 地址 */
+    mac: string
 }
 export type ApiResponse<T extends AnyMethod> = Awaited<ReturnType<T>>;
 export type ApiData<T extends AnyMethod> = ApiResponse<T> extends Result<infer D> ? D : ApiResponse<T>;

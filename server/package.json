@@ -10,9 +10,9 @@
     "build": "electron-vite build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://repo.huaweicloud.com/electron-builder-binaries/ electron-builder"
   },
   "dependencies": {
+    "@mellifera/common": "*",
     "@sapphire/snowflake": "^3.5.5",
     "@vue/reactivity": "^3.5.43",
-    "@mellifera/common": "*",
     "electron-log": "^5.4.4",
     "electron-store": "^11.0.2",
     "lru-cache": "^11.5.1",
@@ -21,10 +21,12 @@
     "sequelize": "^6.37.8",
     "sqlite3": "^6.0.1",
     "superjson": "^2.2.6",
+    "ws": "^8.22.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
+    "@types/ws": "^8.18.2",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/tsconfig": "^0.9.1",
     "electron-devtools-installer": "^4.0.0",

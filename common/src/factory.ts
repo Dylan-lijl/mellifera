@@ -1,5 +1,6 @@
 import {CreateConnectionRequest} from "./entity";
 import {StateData} from "./stateSync";
+import {runState} from "./constant";
 
 export function createConnection(): CreateConnectionRequest {
     return {
@@ -19,7 +20,13 @@ export function createSyncState(): StateData {
             closing: false,
             canGoBack: false,
             canGoForward: false,
-            maximize:false,
+            maximize: false,
         },
+        server: {
+            running: runState.idle.value,
+            port: null,
+            hosts: [],
+            error: null,
+        }
     }
 }

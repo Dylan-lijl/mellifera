@@ -1,4 +1,5 @@
 import z from "zod";
+import {networkType, NetworkType, networkTypeOptions} from "../constant";
 
 export const DeleteByIdDefinition = z.object({
     id: z.int().min(1),
@@ -44,3 +45,26 @@ export const SearchAndPageDefinition = SearchDefinition
 
 export interface SearchAndPageRequest extends z.infer<typeof SearchAndPageDefinition> {
 }
+export const ServerConfig = z.object({
+    mode: z.union(
+        networkTypeOptions.map(item => z.literal(item.value)) as [
+            z.ZodLiteral<NetworkType>,
+            z.ZodLiteral<NetworkType>,
+            ...z.ZodLiteral<NetworkType>[]
+        ]
+    ),
+    hosts: z.array(z.string().trim().min(1))
+        .optional()
+        .nullable(),
+    port: z.number().int().min(1).max(65535),
+}).superRefine((data, ctx) => {
+    if (data.mode === networkType.selected.value && !data.hosts?.length) {
+        ctx.addIssue({
+            code: 'custom',
+            path: ['host'],
+            message: '指定网卡模式下至少需要选择一个监听地址',
+        });
+    }
+});
+
+export type ServerConfig = z.infer<typeof ServerConfig>;

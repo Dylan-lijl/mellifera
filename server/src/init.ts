@@ -5,11 +5,13 @@ import lifeCycle from "@/LifeCycle";
 import path from "path";
 import {getData, saveData} from "@/utils/Store";
 import appContext, {appInfo} from "@/appContext";
-import { devConfig } from "../../dev.config.mjs";
+import {devConfig} from "../../dev.config.mjs";
 import StateSyncManager from "@/StateSyncManager";
-export default async function (){
+
+export default async function () {
     let win: BrowserWindow;
     let tray: Tray | null = null;
+
     /**
      * 就绪回调
      */
@@ -61,7 +63,7 @@ export default async function (){
         win.webContents.on('did-navigate-in-page', () => {
             updateNavState(win);
         });
-        win.on("ready-to-show",()=>{
+        win.on("ready-to-show", () => {
             updateNavState(win);
             StateSyncManager.getState().system.maximize = win.isMaximized();
         })
@@ -116,7 +118,12 @@ export default async function (){
             }
         })
         if (isDev) {
-            win.loadURL(`http://${devConfig.host}:${devConfig.port}`).then(); // 确保端口与 vite 配置一致
+            const hostMap: Record<string, string> = {
+                '0.0.0.0': '127.0.0.1',
+                '::': '[::1]',
+            };
+            const host = hostMap[devConfig.host] ?? devConfig.host;
+            win.loadURL(`http://${host}:${devConfig.port}`).then(); // 确保端口与 vite 配置一致
         } else {
             // 生产环境才加载 dist
             win.loadFile(path.join(__dirname, '../dist/index.html')).then();
@@ -178,10 +185,11 @@ export default async function (){
     async function windowAllClosed() {
         await cleanUpAndExit();
     }
+
     //前置设置
     if (app.isPackaged) {
         app.setName("mellifera");
-    }else{
+    } else {
         process.on('SIGINT', cleanUpAndExit);
         process.on('SIGTERM', cleanUpAndExit);
     }

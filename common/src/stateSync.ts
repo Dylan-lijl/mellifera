@@ -1,6 +1,7 @@
 import {AppInfo} from "./types";
+import {RunStateType} from "./constant";
 
-export interface StateData{
+export interface StateData {
     system: {
         canGoBack: boolean,
         canGoForward: boolean,
@@ -8,7 +9,14 @@ export interface StateData{
         closing: boolean,
         maximize: boolean
     },
+    server: {
+        running: RunStateType,
+        port: number | null,
+        hosts: string[],
+        error: string | null
+    }
 }
+
 export interface StateSnapshot<T> {
     revision: number;
     data: T;
@@ -29,6 +37,7 @@ export interface StateChangeMessage {
     revision: number;
     patches: StatePatch[];
 }
+
 export interface StateSyncApi {
     getSnapshot(): Promise<StateSnapshot<StateData>>;
 

@@ -5,7 +5,7 @@ export class ResultApiException extends Error {
     code: Result<null>
 
     constructor(code: Result<null>) {
-        super();
+        super(code.message+(code.other??''));
         this.code = code;
     }
 }
