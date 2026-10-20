@@ -5,6 +5,7 @@ import {type WrapperName} from "@mellifera/common/api/definition"
 import {SYSTEM_ERROR, SUCCESS} from "@mellifera/common/ResultCode"
 import {ResultApiException} from "@mellifera/common/CustomException"
 import {logger} from "@/utils";
+import SuperJSON from "superjson";
 
 type Handler<T = any> = (...args: any[]) => T | Promise<T>;
 
@@ -21,9 +22,10 @@ export function wrapperResultMethod<T>(handler: Handler<T>): Handler<Result<T>> 
      */
     const success = (value: any): Result<any> => {
         if (value && typeof value === "object" && typeof value.code === "number" && typeof value.message === "string") {
+            value.data = SuperJSON.serialize(value.data);
             return value as Result<T>;
         } else {
-            return {...SUCCESS, data: value} as Result<T>;
+            return {...SUCCESS, data: SuperJSON.serialize(value)} as Result<T>;
         }
     };
     /**
@@ -60,7 +62,7 @@ export function wrapperResultMethod<T>(handler: Handler<T>): Handler<Result<T>> 
  * 日志
  * 根据级别和前后打印对应内容
  */
-export function logMethod<T>(handler: Handler<T>): Handler<T>{
+export function logMethod<T>(handler: Handler<T>): Handler<T> {
     return (...args) => {
         const start = Date.now();
         const now = new Date();

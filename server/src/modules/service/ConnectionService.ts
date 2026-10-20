@@ -19,9 +19,9 @@ export class ConnectionService {
     /**
      * 查询全部连接配置。
      */
-    async searchAndPage(
+    searchAndPage = async (
         request: SearchAndPageRequest,
-    ): Promise<PageData<ListConnectionResponse>> {
+    )=>{
         const { keyword, pageSize, pageNum, id } =
             SearchAndPageDefinition.parse(request)
         const where: WhereOptions<ConnectionEntity> = {
@@ -55,13 +55,13 @@ export class ConnectionService {
             pageSize,
             pageNum,
             totalPage: Math.ceil(count / pageSize),
-        }
+        } as PageData<ListConnectionResponse>
     }
 
     /**
      * 查询单个连接配置。
      */
-    async getById(request: FindByIdRequest):Promise<InfoConnectionResponse> {
+    getById = async (request: FindByIdRequest)=>{
         const entity = await ConnectionEntity.findByPk(request.id)
         if (!entity) {
             throw new ResultApiException(ID_NOT_EXIST_EXCEPTION)
@@ -74,15 +74,12 @@ export class ConnectionService {
      *
      * 新建配置不会自动连接服务端。
      */
-    async create(input: CreateConnectionRequest): Promise<number> {
+    create = async (input: CreateConnectionRequest)=>{
         const data = CreateConnectionDefinition.parse(input)
         const entity = await ConnectionEntity.create({
             ...data,
         })
-        console.log('entity:', entity.toJSON())
-        console.log('id:', entity.id)
-        console.log('primaryKeyAttribute:', ConnectionEntity.primaryKeyAttribute)
-        return entity.id;
+        return entity.id as number;
     }
 
     /**
@@ -91,7 +88,7 @@ export class ConnectionService {
      * 修改配置不会自动重连。
      * 如果连接当前正在运行，要求先断开再修改。
      */
-    async update(input: UpdateConnectionRequest): Promise<void> {
+    update = async (input: UpdateConnectionRequest)=> {
         const data = UpdateConnectionDefinition.parse(input);
         const {id, ...values} = data;
         const [affectedCount] = await ConnectionEntity.update(values, {
@@ -108,7 +105,7 @@ export class ConnectionService {
      * 如果连接仍处于活动状态，先尝试断开。
      * 断开失败时不删除配置，避免留下难以管理的活动连接。
      */
-    async delete(request: DeleteByIdRequest): Promise<void> {
+    delete = async (request: DeleteByIdRequest)=> {
         const entity = await ConnectionEntity.findByPk(request.id)
         if (!entity) {
             throw new ResultApiException(ID_NOT_EXIST_EXCEPTION)
@@ -121,7 +118,7 @@ export class ConnectionService {
      *
      * 禁用时，如果连接正在运行，则先断开。
      */
-    async enable(request: EnabledRequest): Promise<void> {
+    enable = async (request: EnabledRequest)=>{
         const {id, enabled} = EnabledDefinition.parse(request);
         const entity = await ConnectionEntity.findByPk(id);
 

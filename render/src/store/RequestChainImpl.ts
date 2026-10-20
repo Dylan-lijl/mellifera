@@ -4,6 +4,7 @@ import type {
 } from "@mellifera/common/api/definition";
 import type {RequestChain, ApiResponse, ApiData} from '@mellifera/common/types'
 import {deepToRaw} from "@/util";
+import SuperJSON from "superjson";
 
 export interface RequestHooks {
     requesting: Set<LoadingKey>;
@@ -17,7 +18,7 @@ export function isSuccess<T extends AnyMethod>(res: ApiResponse<T>): boolean {
 
 export function getData<T extends AnyMethod>(res: ApiResponse<T>): ApiData<T> {
     if (typeof res === "object" && res !== null && "data" in res) {
-        return res.data as ApiData<T>;
+        return SuperJSON.deserialize(res.data) as ApiData<T>;
     }
     return res as ApiData<T>;
 }

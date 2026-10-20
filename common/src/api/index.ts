@@ -6,11 +6,12 @@ import {
 import {type AppInfo, NetworkIpInfo} from "../types";
 import type {ReloadType} from "../constant";
 import {
+    CreateClientRequest,
     CreateConnectionRequest, DeleteByIdRequest, EnabledRequest,
-    FindByIdRequest,
-    InfoConnectionResponse,
+    FindByIdRequest, InfoClientResponse,
+    InfoConnectionResponse, ListClientResponse,
     ListConnectionResponse,
-    SearchAndPageRequest, ServerConfig, UpdateConnectionRequest
+    SearchAndPageRequest, ServerConfig, UpdateClientRequest, UpdateConnectionRequest
 } from "../entity";
 import {PageData} from "../Result";
 
@@ -42,18 +43,42 @@ export const ConnectionApiDefinition = {
         wrappers: commonWrapper,
         loading: (request) => request.id
     }),
-    delete: method<(request: DeleteByIdRequest) => Promise<void>>({wrappers: commonWrapper,loading: (request) => request.id}),
-    enable: method<(request: EnabledRequest) => Promise<void>>({wrappers: commonWrapper,loading: (request) => request.id}),
+    delete: method<(request: DeleteByIdRequest) => Promise<void>>({
+        wrappers: commonWrapper,
+        loading: (request) => request.id
+    }),
+    enable: method<(request: EnabledRequest) => Promise<void>>({
+        wrappers: commonWrapper,
+        loading: (request) => request.id
+    }),
+}
+export const ClientApiDefinition = {
+    searchAndPage: method<(request: SearchAndPageRequest) => Promise<PageData<ListClientResponse>>>({wrappers: commonWrapper}),
+    getById: method<(request: FindByIdRequest) => Promise<InfoClientResponse>>({wrappers: commonWrapper}),
+    create: method<(request: CreateClientRequest) => Promise<number>>({wrappers: commonWrapper}),
+    update: method<(request: UpdateClientRequest) => Promise<void>>({
+        wrappers: commonWrapper,
+        loading: (request) => request.id
+    }),
+    delete: method<(request: DeleteByIdRequest) => Promise<void>>({
+        wrappers: commonWrapper,
+        loading: (request) => request.id
+    }),
+    enable: method<(request: EnabledRequest) => Promise<void>>({
+        wrappers: commonWrapper,
+        loading: (request) => request.id
+    }),
 }
 export const ServerApiDefinition = {
     getConfig: method<() => Promise<ServerConfig>>({wrappers: commonWrapper}),
-    saveConfig: method<(config:ServerConfig) => Promise<void>>({wrappers: commonWrapper}),
+    saveConfig: method<(config: ServerConfig) => Promise<void>>({wrappers: commonWrapper}),
     getNetworkIpInfos: method<() => Promise<NetworkIpInfo[]>>({wrappers: commonWrapper}),
     start: method<() => Promise<void>>({wrappers: commonWrapper}),
     stop: method<() => Promise<void>>({wrappers: commonWrapper}),
 }
 export const ServiceApiDefinition = {
     connection: ConnectionApiDefinition,
+    client: ClientApiDefinition,
     server: ServerApiDefinition,
 }
 export const ApiDefinition = {

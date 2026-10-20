@@ -18,3 +18,13 @@ export interface RouterMetadata {
      */
     config?: Partial<Omit<RouteRecordRaw, 'children' | 'meta'>>;
 }
+export type SuperTableColumn<T> = DataTableColumns<T>[number] & {
+    /** 是否隐藏该列 */
+    hidden?: boolean
+
+    /** 格式化字段值 */
+    format?: (value: unknown, row: T, index: number) => VNodeChild
+
+    /** 移动端是否默认收起该字段 */
+    expand?: boolean
+}

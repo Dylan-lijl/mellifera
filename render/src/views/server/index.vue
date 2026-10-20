@@ -1,29 +1,28 @@
 <script setup lang="ts">
-import {computed, h, ref} from 'vue'
+import {ref} from 'vue'
 import {
   NButton,
   NCard,
-  NDataTable,
-  NEmpty,
   NForm,
   NFormItem,
   NGrid,
   NGridItem,
   NInputNumber,
-  NPopconfirm,
   NIcon,
   NSpace,
   NStatistic,
   NTag,
-  NText,
   useMessage,
-  type DataTableColumns,
   type FormInst,
   type FormRules,
 } from 'naive-ui'
 import {PlayOutline, StopOutline} from '@vicons/ionicons5'
-import {type ServerConfig} from "@mellifera/common/entity";
+import type {
+  ListClientResponse, SearchRequest,
+  ServerConfig
+} from "@mellifera/common/entity";
 import {
+  contentContainer,
   networkType,
   networkTypeOptions,
   runState,
@@ -33,15 +32,10 @@ import {
 import {useStore} from "@/store";
 import type {NetworkIpInfo} from "@mellifera/common/types";
 import {Eye24Regular as Eye} from "@vicons/fluent"
-
-interface ClientInfo {
-  id: number
-  name: string
-  address: string
-  connectedAt: string
-  status: 'connected' | 'disconnected'
-  mappingCount: number
-}
+import Detail from "./detail.vue";
+import {createPagination} from "@mellifera/common/util";
+import {formatDateTime, showError} from "@/util";
+import type {SuperTableColumn} from "@/types";
 
 const message = useMessage()
 const store = useStore();
@@ -53,18 +47,8 @@ const config = ref<ServerConfig>({
   port: 5175
 })
 const hostOptions = ref<NetworkIpInfo[]>([]);
-const clients = ref<ClientInfo[]>([])
+const clients = ref<ListClientResponse[]>([])
 
-const onlineCount = computed(
-    () => clients.value.filter(item => item.status === 'connected').length,
-)
-
-const mappingCount = computed(
-    () =>
-        clients.value
-            .filter(item => item.status === 'connected')
-            .reduce((sum, item) => sum + item.mappingCount, 0),
-)
 watch(() => config.value.mode, () => {
   if (config.value.mode === networkType.selected.value) {
     updateHosts();
@@ -90,74 +74,6 @@ const rules: FormRules = {
   ],
 }
 
-const clientColumns: DataTableColumns<ClientInfo> = [
-  {
-    title: '客户端名称',
-    key: 'name',
-    minWidth: 150,
-  },
-  {
-    title: '客户端地址',
-    key: 'address',
-    minWidth: 180,
-  },
-  {
-    title: '连接时间',
-    key: 'connectedAt',
-    minWidth: 170,
-  },
-  {
-    title: '端口映射',
-    key: 'mappingCount',
-    width: 100,
-    render(row) {
-      return `${row.mappingCount} 条`
-    },
-  },
-  {
-    title: '状态',
-    key: 'status',
-    width: 110,
-    render(row) {
-      return h(
-          NTag,
-          {
-            type: row.status === 'connected' ? 'success' : 'default',
-            bordered: false,
-          },
-          {
-            default: () =>
-                row.status === 'connected' ? '已连接' : '已断开',
-          },
-      )
-    },
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 100,
-    render(row) {
-      if (row.status !== 'connected') return '-'
-
-      return h(
-          NPopconfirm,
-          {
-            onPositiveClick: () => handleDisconnect(row),
-          },
-          {
-            trigger: () =>
-                h(
-                    NButton,
-                    {size: 'small', type: 'error', secondary: true},
-                    {default: () => '断开连接'},
-                ),
-            default: () => `确定断开客户端「${row.name}」吗？`,
-          },
-      )
-    },
-  },
-]
-
 async function updateHosts() {
   if (store.apiState.service.server.getNetworkIpInfos.requesting.size) {
     return
@@ -166,7 +82,36 @@ async function updateHosts() {
 
 }
 
-async function loadData() {
+function handleAdd() {
+  infoDesc.value.show = true;
+  infoDesc.value.title = "添加连接";
+}
+
+async function handleDelete(row: ListClientResponse) {
+  if (store.apiState.service.client.delete.requesting.has(row.id)) {
+    return
+  }
+  try {
+    await store.service.client.delete({id: row.id}).errorMessage((r) => showError(message, r))
+        .get();
+    clients.value = clients.value.filter(item => item.id !== row.id);
+  } catch (error) {
+    message.error('删除失败')
+  }
+}
+
+function handlePageSizeChange(pageSize: number) {
+  client.page.pageSize = pageSize;
+  loadData()
+}
+
+function handleEdit(row: ListClientResponse) {
+  infoDesc.value.show = true;
+  infoDesc.value.title = "修改连接";
+  infoDesc.value.data = row;
+}
+
+async function loadConfig() {
   if (!store.apiState.service.server.getConfig.requesting.size) {
     try {
       config.value = await store.service.server.getConfig().get();
@@ -199,16 +144,123 @@ async function handleStop() {
   await store.service.server.stop().get();
 }
 
-async function handleDisconnect(client: ClientInfo) {
-  try {
-    // TODO: 调用服务端断开指定客户端的 API。
-    message.info(`请接入断开客户端 ${client.name} 的 API`)
-  } catch {
-    message.error('断开客户端失败')
+const infoDesc = ref({
+  title: "",
+  show: false,
+  data: null as ListClientResponse | null,
+});
+const client = reactive<{
+  data: ListClientResponse[];
+  page: ReturnType<typeof createPagination>;
+  param: SearchRequest;
+  columns: SuperTableColumn<ListClientResponse>,
+  checkedRowId: number | null,
+}>({
+  data: [],
+  page: createPagination(loadData),
+  param: {
+    keyword: undefined,
+  },
+  checkedRowId: null,
+  columns: [
+    {
+      title: '',
+      key: 'selection',
+      width: 'auto',
+    },
+    {
+      title: 'ID',
+      key: 'id',
+      minWidth: 80,
+      resizable: true,
+      hidden: true,
+    },
+    {
+      title: '名称',
+      key: 'name',
+      minWidth: 150,
+      resizable: true,
+    },
+    {
+      title: '认证令牌',
+      key: 'token',
+      minWidth: 170,
+      resizable: true,
+    },
+    {
+      title: '状态',
+      key: 'enabled',
+      minWidth: 80,
+      resizable: true,
+    },
+    {
+      title: '描述',
+      key: 'description',
+      width: 150,
+      resizable: true,
+    }, {
+      title: '创建时间',
+      key: 'createdAt',
+      width: 180,
+      resizable: true,
+    }, {
+      title: '修改时间',
+      key: 'updatedAt',
+      width: 180,
+      resizable: true,
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 140,
+      fixed: 'right',
+      resizable: true,
+    },
+  ]
+});
+
+async function loadData() {
+  if (store.apiState.service.client.searchAndPage.requesting.size) {
+    return;
   }
+  const data = await store.service.client.searchAndPage(client.page.get(client.param))
+      .errorMessage((r) => showError(message, r))
+      .get();
+  client.data = data.list;
+}
+
+function reloadData() {
+  if (store.apiState.service.client.searchAndPage.requesting.size) {
+    return;
+  }
+  client.page.current = 1;
+  loadData();
+}
+
+function infoSuccess(item: ListClientResponse | null) {
+  if (!item) {
+    return;
+  }
+  if (infoDesc.value.data) {
+    //替换
+    let index = client.data.findIndex((o) => o.id === item.id);
+    if (index > -1) {
+      client.data[index] = item;
+    }
+  } else {
+    client.page.total += 1;
+    const maxPage = Math.ceil(client.page.total / client.page.pageSize) || 1;
+    const isLastPage = client.page.current === maxPage;
+    const isPageNotFull = client.data.length < client.page.pageSize;
+    if (isLastPage && isPageNotFull) {
+      client.data.push(item);
+    }
+  }
+  infoDesc.value.show = false;
 }
 
 onMounted(() => {
+  loadConfig()
   loadData()
 })
 </script>
@@ -223,7 +275,7 @@ onMounted(() => {
       </div>
 
       <n-space>
-        <n-button @click="loadData" :loading="!!store.apiState.service.server.getConfig.requesting.size">
+        <n-button @click="loadConfig" :loading="!!store.apiState.service.server.getConfig.requesting.size">
           刷新
         </n-button>
         <n-button
@@ -276,17 +328,17 @@ onMounted(() => {
         </n-card>
       </n-grid-item>
 
-      <n-grid-item>
-        <n-card size="small">
-          <n-statistic label="在线连接" :value="onlineCount"/>
-        </n-card>
-      </n-grid-item>
+      <!--      <n-grid-item>
+              <n-card size="small">
+                <n-statistic label="在线连接" :value="onlineCount"/>
+              </n-card>
+            </n-grid-item>-->
 
-      <n-grid-item>
-        <n-card size="small">
-          <n-statistic label="活动映射" :value="mappingCount"/>
-        </n-card>
-      </n-grid-item>
+      <!--      <n-grid-item>
+              <n-card size="small">
+                <n-statistic label="活动映射" :value="mappingCount"/>
+              </n-card>
+            </n-grid-item>-->
     </n-grid>
 
     <!-- 服务端配置 -->
@@ -373,25 +425,79 @@ onMounted(() => {
     </n-card>
 
     <!-- 在线连接 -->
-    <n-card title="客户端连接" class="section-card">
+    <n-card title="客户端" class="section-card">
       <template #header-extra>
-        <n-text depth="3">{{ clients.length }} 条记录</n-text>
+        <ColumnVisibility :columns="client.columns"/>
+        <n-button type="info" quaternary @click="reloadData">刷新</n-button>
+        <n-button type="primary" quaternary @click="handleAdd">新增</n-button>
       </template>
 
-      <n-data-table
-          :columns="clientColumns"
-          :data="clients"
-          :pagination="{ pageSize: 5 }"
+      <SupperTable
+          :columns="client.columns.filter((item:SuperTableColumn<ListClientResponse>)=>!item.hidden)"
+          :data="client.data"
           :bordered="false"
           :single-line="false"
-      />
-
-      <n-empty
-          v-if="clients.length === 0"
-          description="暂无客户端连接"
-          class="empty-state"
-      />
+      >
+        <template #render="{row,column}">
+          <template v-if="column.key==='selection'">
+            <n-radio
+                :value="row.id"
+                :checked="client.checkedRowId === row.id"
+                @click.prevent=" client.checkedRowId = client.checkedRowId === row.id ? null : row.id"
+            />
+          </template>
+          <template v-if="column.key==='enabled'">
+            <n-tag :type="row.enabled?'success':'warning'">{{ row.enabled ? '已启用' : '已禁用' }}</n-tag>
+          </template>
+          <template v-else-if="column.key==='createdAt'||column.key==='updatedAt'">
+            {{ formatDateTime(row.createdAt) }}
+          </template>
+          <template v-else-if="column.key==='updatedAt'">
+            {{ formatDateTime(row.updatedAt) }}
+          </template>
+          <template v-else-if="column.key==='actions'">
+            <n-button type="info" quaternary @click="()=>handleEdit(row)">编辑</n-button>
+            <n-popconfirm
+                @positive-click="()=>handleDelete(row)"
+            >
+              <template #trigger>
+                <n-button type="error" quaternary>删除</n-button>
+              </template>
+              删除后对应用户将无法连接,确定要删除吗?
+            </n-popconfirm>
+          </template>
+          <template v-else>
+            {{ row[column.key as keyof ListClientResponse] }}
+          </template>
+        </template>
+      </SupperTable>
+      <div style="margin-block-start: 4px">
+        <n-pagination
+            v-model:page="client.page.current"
+            v-model:page-size="client.page.pageSize"
+            :item-count="client.page.total"
+            show-size-picker
+            :page-sizes="client.page.pageSizes"
+            @update:page="loadConfig"
+            @update:page-size="handlePageSizeChange"
+        />
+      </div>
     </n-card>
+    <NDrawer
+        v-model:show="infoDesc.show"
+        placement="right"
+        :width="'50%'"
+        :to="'.'+contentContainer"
+        :auto-focus="false"
+    >
+      <NDrawerContent :title="infoDesc.title" closable>
+        <Detail
+            :data="infoDesc.data"
+            @success="infoSuccess"
+            @close="()=>infoDesc.show = false"
+        />
+      </NDrawerContent>
+    </NDrawer>
   </div>
 </template>
 <style scoped>
@@ -441,15 +547,4 @@ onMounted(() => {
   padding: 24px 0;
 }
 
-@media (max-width: 760px) {
-  .service-page {
-    padding: 12px;
-  }
-
-  .page-header,
-  .form-footer {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
 </style>

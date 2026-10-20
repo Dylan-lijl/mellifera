@@ -1,4 +1,4 @@
-import {CreateConnectionRequest} from "./entity";
+import {CreateClientRequest, CreateConnectionRequest} from "./entity";
 import {StateData} from "./stateSync";
 import {runState} from "./constant";
 
@@ -12,7 +12,14 @@ export function createConnection(): CreateConnectionRequest {
         description: '',
     }
 }
-
+export function createClient():CreateClientRequest{
+    return  {
+        name:"未命名",
+        token: '',
+        enabled: true,
+        description: '',
+    }
+}
 export function createSyncState(): StateData {
     return {
         system: {
