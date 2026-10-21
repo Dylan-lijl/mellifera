@@ -7,11 +7,12 @@ import {type AppInfo, NetworkIpInfo} from "../types";
 import type {ReloadType} from "../constant";
 import {
     CreateClientRequest,
-    CreateConnectionRequest, DeleteByIdRequest, EnabledRequest,
+    CreateConnectionRequest, CreateMappingRequest, DeleteByIdRequest, EnabledRequest,
     FindByIdRequest, InfoClientResponse,
-    InfoConnectionResponse, ListClientResponse,
-    ListConnectionResponse,
-    SearchAndPageRequest, ServerConfig, UpdateClientRequest, UpdateConnectionRequest
+    InfoConnectionResponse, InfoMappingResponse, type ListClientRequest, ListClientResponse,
+    ListConnectionResponse, ListMappingRequest,
+    ListMappingResponse,
+    SearchAndPageRequest, ServerConfig, UpdateClientRequest, UpdateConnectionRequest, UpdateMappingRequest
 } from "../entity";
 import {PageData} from "../Result";
 
@@ -53,10 +54,27 @@ export const ConnectionApiDefinition = {
     }),
 }
 export const ClientApiDefinition = {
-    searchAndPage: method<(request: SearchAndPageRequest) => Promise<PageData<ListClientResponse>>>({wrappers: commonWrapper}),
+    searchAndPage: method<(request: ListClientRequest) => Promise<PageData<ListClientResponse>>>({wrappers: commonWrapper}),
     getById: method<(request: FindByIdRequest) => Promise<InfoClientResponse>>({wrappers: commonWrapper}),
     create: method<(request: CreateClientRequest) => Promise<number>>({wrappers: commonWrapper}),
     update: method<(request: UpdateClientRequest) => Promise<void>>({
+        wrappers: commonWrapper,
+        loading: (request) => request.id
+    }),
+    delete: method<(request: DeleteByIdRequest) => Promise<void>>({
+        wrappers: commonWrapper,
+        loading: (request) => request.id
+    }),
+    enable: method<(request: EnabledRequest) => Promise<void>>({
+        wrappers: commonWrapper,
+        loading: (request) => request.id
+    }),
+}
+export const MappingApiDefinition = {
+    searchAndPage: method<(request: ListMappingRequest) => Promise<PageData<ListMappingResponse>>>({wrappers: commonWrapper}),
+    getById: method<(request: FindByIdRequest) => Promise<InfoMappingResponse>>({wrappers: commonWrapper}),
+    create: method<(request: CreateMappingRequest) => Promise<number>>({wrappers: commonWrapper}),
+    update: method<(request: UpdateMappingRequest) => Promise<void>>({
         wrappers: commonWrapper,
         loading: (request) => request.id
     }),
@@ -79,6 +97,7 @@ export const ServerApiDefinition = {
 export const ServiceApiDefinition = {
     connection: ConnectionApiDefinition,
     client: ClientApiDefinition,
+    mapping: MappingApiDefinition,
     server: ServerApiDefinition,
 }
 export const ApiDefinition = {

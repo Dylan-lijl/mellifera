@@ -24,7 +24,7 @@ export interface EnabledRequest extends z.infer<typeof EnabledDefinition> {
 }
 
 export const SearchDefinition = z.object({
-    keyword: z.string().optional().describe("关键词"),
+    keyword: z.string().nullish().describe("关键词"),
     id: z.int().nullish().describe("主键")
 }).describe("搜索");
 

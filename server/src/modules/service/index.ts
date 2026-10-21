@@ -3,6 +3,7 @@ import {ServiceApiDefinition} from "@mellifera/common/api";
 import ConnectionService from "@/modules/service/ConnectionService";
 import ServerService from "@/modules/service/ServerService";
 import ClientService from "@/modules/service/ClientService";
+import MappingService from "@/modules/service/MappingService";
 
 export default defineApiHandler(ServiceApiDefinition, {
     connection:{
@@ -20,6 +21,14 @@ export default defineApiHandler(ServiceApiDefinition, {
         update:ClientService.update,
         delete:ClientService.delete,
         enable:ClientService.enable,
+    },
+    mapping:{
+        searchAndPage:MappingService.searchAndPage,
+        getById:MappingService.getById,
+        create:MappingService.create,
+        update:MappingService.update,
+        delete:MappingService.delete,
+        enable:MappingService.enable,
     },
     server:{
         getConfig: ServerService.getConfig,

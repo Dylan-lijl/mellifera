@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import {PageDefinition, SearchAndPageDefinition, SearchDefinition} from "./common";
 
 export const ClientDefinition = z.object({
     id: z.number().int().positive(),
@@ -36,3 +37,7 @@ export const InfoClientDefinition = ClientDefinition;
 export interface InfoClientResponse extends z.input<typeof InfoClientDefinition>{}
 export const ListClientDefinition = ClientDefinition;
 export interface ListClientResponse extends z.input<typeof ListClientDefinition>{}
+export const ListClientRequestDefinition = SearchAndPageDefinition.extend({
+    enabled: z.boolean().nullish(),
+}).describe("查询")
+export interface ListClientRequest extends z.input<typeof ListClientRequestDefinition>{}

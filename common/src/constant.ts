@@ -34,6 +34,12 @@ export const runState = {
 } as const
 export const runStateOptions = Object.values(runState);
 export type RunStateType = typeof runStateOptions[number]["value"];
+export const transportProtocol = {
+    tcp: {label: 'TCP', value: 1, enabled: true, description: "传输控制协议(Transfer Control Protocol)"},
+    udp: {label: 'UDP', value: 2, enabled: true, description: "用户数据协议(User Data Protocol)"},
+} as const
+export const transportProtocolOptions = Object.values(transportProtocol);
+export type TransportProtocolType = typeof transportProtocolOptions[number]["value"];
 //==================================================================
 export const updateLogs = [{
     createTime: new Date(1791710263046),

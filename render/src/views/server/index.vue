@@ -18,7 +18,8 @@ import {
 } from 'naive-ui'
 import {PlayOutline, StopOutline} from '@vicons/ionicons5'
 import type {
-  ListClientResponse, SearchRequest,
+  ListClientResponse,
+  ListMappingResponse,
   ServerConfig
 } from "@mellifera/common/entity";
 import {
@@ -47,7 +48,6 @@ const config = ref<ServerConfig>({
   port: 5175
 })
 const hostOptions = ref<NetworkIpInfo[]>([]);
-const clients = ref<ListClientResponse[]>([])
 
 watch(() => config.value.mode, () => {
   if (config.value.mode === networkType.selected.value) {
@@ -80,35 +80,6 @@ async function updateHosts() {
   }
   hostOptions.value = await store.service.server.getNetworkIpInfos().get();
 
-}
-
-function handleAdd() {
-  infoDesc.value.show = true;
-  infoDesc.value.title = "添加连接";
-}
-
-async function handleDelete(row: ListClientResponse) {
-  if (store.apiState.service.client.delete.requesting.has(row.id)) {
-    return
-  }
-  try {
-    await store.service.client.delete({id: row.id}).errorMessage((r) => showError(message, r))
-        .get();
-    clients.value = clients.value.filter(item => item.id !== row.id);
-  } catch (error) {
-    message.error('删除失败')
-  }
-}
-
-function handlePageSizeChange(pageSize: number) {
-  client.page.pageSize = pageSize;
-  loadData()
-}
-
-function handleEdit(row: ListClientResponse) {
-  infoDesc.value.show = true;
-  infoDesc.value.title = "修改连接";
-  infoDesc.value.data = row;
 }
 
 async function loadConfig() {
@@ -144,7 +115,8 @@ async function handleStop() {
   await store.service.server.stop().get();
 }
 
-const infoDesc = ref({
+//=================== client ===========================
+const clientInfoDesc = ref({
   title: "",
   show: false,
   data: null as ListClientResponse | null,
@@ -152,14 +124,15 @@ const infoDesc = ref({
 const client = reactive<{
   data: ListClientResponse[];
   page: ReturnType<typeof createPagination>;
-  param: SearchRequest;
+  param: any;
   columns: SuperTableColumn<ListClientResponse>,
   checkedRowId: number | null,
 }>({
   data: [],
-  page: createPagination(loadData),
+  page: createPagination(loadClientData),
   param: {
-    keyword: undefined,
+    keyword: null,
+    enabled: null,
   },
   checkedRowId: null,
   columns: [
@@ -190,7 +163,7 @@ const client = reactive<{
     {
       title: '状态',
       key: 'enabled',
-      minWidth: 80,
+      minWidth: 110,
       resizable: true,
     },
     {
@@ -219,7 +192,7 @@ const client = reactive<{
   ]
 });
 
-async function loadData() {
+async function loadClientData() {
   if (store.apiState.service.client.searchAndPage.requesting.size) {
     return;
   }
@@ -229,19 +202,61 @@ async function loadData() {
   client.data = data.list;
 }
 
-function reloadData() {
+async function handleClientChangeEnable(row: ListClientResponse, value: boolean) {
+  if (store.apiState.service.client.enable.requesting.has(row.id)) {
+    return
+  }
+  const v = await store.service.client.enable({
+    id: row.id,
+    enabled: value
+  }).errorMessage(r => showError(message, r)).get();
+  if (v === undefined) {
+    row.enabled = value;
+  }
+}
+
+function reloadClientData() {
   if (store.apiState.service.client.searchAndPage.requesting.size) {
     return;
   }
   client.page.current = 1;
-  loadData();
+  loadClientData();
 }
 
-function infoSuccess(item: ListClientResponse | null) {
+function handleClientAdd() {
+  clientInfoDesc.value.show = true;
+  clientInfoDesc.value.title = "添加连接";
+}
+
+async function handleClientDelete(row: ListClientResponse) {
+  if (store.apiState.service.client.delete.requesting.has(row.id)) {
+    return
+  }
+  try {
+    await store.service.client.delete({id: row.id}).errorMessage((r) => showError(message, r))
+        .get();
+    client.data = client.data.filter(item => item.id !== row.id);
+  } catch (error) {
+    message.error('删除失败')
+  }
+}
+
+function handleClientPageSizeChange(pageSize: number) {
+  client.page.pageSize = pageSize;
+  loadClientData()
+}
+
+function handleClientEdit(row: ListClientResponse) {
+  clientInfoDesc.value.show = true;
+  clientInfoDesc.value.title = "修改连接";
+  clientInfoDesc.value.data = row;
+}
+
+function infoClientSuccess(item: ListClientResponse | null) {
   if (!item) {
     return;
   }
-  if (infoDesc.value.data) {
+  if (clientInfoDesc.value.data) {
     //替换
     let index = client.data.findIndex((o) => o.id === item.id);
     if (index > -1) {
@@ -256,12 +271,191 @@ function infoSuccess(item: ListClientResponse | null) {
       client.data.push(item);
     }
   }
-  infoDesc.value.show = false;
+  clientInfoDesc.value.show = false;
+}
+//=================== mapping ===========================
+const mappingInfoDesc = ref({
+  title: "",
+  show: false,
+  data: null as ListMappingResponse | null,
+});
+const mapping = reactive<{
+  data: ListMappingResponse[];
+  page: ReturnType<typeof createPagination>;
+  param: any;
+  columns: SuperTableColumn<ListMappingResponse>,
+  checkedRowId: number | null,
+}>({
+  data: [],
+  page: createPagination(loadMappingData),
+  param: {
+    keyword: null,
+    enabled: null,
+  },
+  checkedRowId: null,
+  columns: [
+    {
+      title: 'ID',
+      key: 'id',
+      minWidth: 80,
+      resizable: true,
+      hidden: true,
+    },{
+      title: '客户id',
+      key: 'clientId',
+      minWidth: 80,
+      resizable: true,
+      hidden: true,
+    },
+    {
+      title: '名称',
+      key: 'name',
+      minWidth: 150,
+      resizable: true,
+    },{
+      title: '协议',
+      key: 'protocol',
+      minWidth: 150,
+      resizable: true,
+    },
+    {
+      title: '映射端口',
+      key: 'listenPort',
+      minWidth: 170,
+      resizable: true,
+    },{
+      title: '目标主机',
+      key: 'targetHost',
+      minWidth: 170,
+      resizable: true,
+    },{
+      title: '目标端口',
+      key: 'targetPort',
+      minWidth: 170,
+      resizable: true,
+    },
+    {
+      title: '禁用端口',
+      key: 'disabledPorts',
+      minWidth: 110,
+      resizable: true,
+    },{
+      title: '状态',
+      key: 'enabled',
+      minWidth: 110,
+      resizable: true,
+    },
+    {
+      title: '描述',
+      key: 'description',
+      width: 150,
+      resizable: true,
+    }, {
+      title: '创建时间',
+      key: 'createdAt',
+      width: 180,
+      resizable: true,
+    }, {
+      title: '修改时间',
+      key: 'updatedAt',
+      width: 180,
+      resizable: true,
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 140,
+      fixed: 'right',
+      resizable: true,
+    },
+  ]
+});
+
+async function loadMappingData() {
+  if (store.apiState.service.mapping.searchAndPage.requesting.size) {
+    return;
+  }
+  const data = await store.service.mapping.searchAndPage(mapping.page.get(mapping.param))
+      .errorMessage((r) => showError(message, r))
+      .get();
+  mapping.data = data.list;
+}
+
+async function handleMappingChangeEnable(row: ListMappingResponse, value: boolean) {
+  if (store.apiState.service.mapping.enable.requesting.has(row.id)) {
+    return
+  }
+  const v = await store.service.mapping.enable({
+    id: row.id,
+    enabled: value
+  }).errorMessage(r => showError(message, r)).get();
+  if (v === undefined) {
+    row.enabled = value;
+  }
+}
+
+function reloadMappingData() {
+  if (store.apiState.service.mapping.searchAndPage.requesting.size) {
+    return;
+  }
+  mapping.page.current = 1;
+  loadMappingData();
+}
+
+function handleMappingAdd() {
+  mappingInfoDesc.value.show = true;
+  mappingInfoDesc.value.title = "添加映射";
+}
+
+async function handleMappingDelete(row: ListMappingResponse) {
+  if (store.apiState.service.mapping.delete.requesting.has(row.id)) {
+    return
+  }
+  try {
+    await store.service.mapping.delete({id: row.id}).errorMessage((r) => showError(message, r))
+        .get();
+    mapping.data = mapping.data.filter(item => item.id !== row.id);
+  } catch (error) {
+    message.error('删除失败')
+  }
+}
+
+function handleMappingPageSizeChange(pageSize: number) {
+  mapping.page.pageSize = pageSize;
+  loadMappingData()
+}
+
+function handleMappingEdit(row: ListMappingResponse) {
+  mappingInfoDesc.value.show = true;
+  mappingInfoDesc.value.title = "修改映射";
+  mappingInfoDesc.value.data = row;
+}
+
+function infoMappingSuccess(item: ListMappingResponse | null) {
+  if (!item) {
+    return;
+  }
+  if (mappingInfoDesc.value.data) {
+    //替换
+    let index = mapping.data.findIndex((o) => o.id === item.id);
+    if (index > -1) {
+      mapping.data[index] = item;
+    }
+  } else {
+    mapping.page.total += 1;
+    const maxPage = Math.ceil(mapping.page.total / mapping.page.pageSize) || 1;
+    const isLastPage = mapping.page.current === maxPage;
+    const isPageNotFull = mapping.data.length < mapping.page.pageSize;
+    if (isLastPage && isPageNotFull) {
+      mapping.data.push(item);
+    }
+  }
+  mappingInfoDesc.value.show = false;
 }
 
 onMounted(() => {
   loadConfig()
-  loadData()
+  loadMappingData()
 })
 </script>
 <template>
@@ -425,11 +619,22 @@ onMounted(() => {
     </n-card>
 
     <!-- 在线连接 -->
-    <n-card title="客户端" class="section-card">
+    <n-card class="section-card">
+      <template #header>
+        <div style=" display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <span>客户端</span>
+          <n-input style="max-width: 250px" placeholder="关键字"
+                   v-model:value="client.param.keyword"></n-input>
+          <n-select v-model="client.param.enabled" :clearable="true" style="width: 100px;display: inline-block"
+                    :options="[ { label: '已启用', value: 'true' }, { label: '已禁用', value: 'false' }, ]"
+                    @update:value="value => client.param.enabled = value === null||value===undefined ? value : value === 'true'">
+          </n-select>
+          <n-button type="info" quaternary @click="reloadClientData">查询</n-button>
+        </div>
+      </template>
       <template #header-extra>
         <ColumnVisibility :columns="client.columns"/>
-        <n-button type="info" quaternary @click="reloadData">刷新</n-button>
-        <n-button type="primary" quaternary @click="handleAdd">新增</n-button>
+        <n-button type="primary" quaternary @click="handleClientAdd">新增</n-button>
       </template>
 
       <SupperTable
@@ -447,7 +652,15 @@ onMounted(() => {
             />
           </template>
           <template v-if="column.key==='enabled'">
-            <n-tag :type="row.enabled?'success':'warning'">{{ row.enabled ? '已启用' : '已禁用' }}</n-tag>
+            <n-switch :value="row.enabled" @update:value="(value)=>handleClientChangeEnable(row,value)"
+                      :loading="store.apiState.service.client.enable.requesting.has(row.id)">
+              <template #checked>
+                已启用
+              </template>
+              <template #unchecked>
+                已禁用
+              </template>
+            </n-switch>
           </template>
           <template v-else-if="column.key==='createdAt'||column.key==='updatedAt'">
             {{ formatDateTime(row.createdAt) }}
@@ -456,9 +669,9 @@ onMounted(() => {
             {{ formatDateTime(row.updatedAt) }}
           </template>
           <template v-else-if="column.key==='actions'">
-            <n-button type="info" quaternary @click="()=>handleEdit(row)">编辑</n-button>
+            <n-button type="info" quaternary @click="()=>handleClientEdit(row)">编辑</n-button>
             <n-popconfirm
-                @positive-click="()=>handleDelete(row)"
+                @positive-click="()=>handleClientDelete(row)"
             >
               <template #trigger>
                 <n-button type="error" quaternary>删除</n-button>
@@ -479,22 +692,93 @@ onMounted(() => {
             show-size-picker
             :page-sizes="client.page.pageSizes"
             @update:page="loadConfig"
-            @update:page-size="handlePageSizeChange"
+            @update:page-size="handleClientPageSizeChange"
         />
       </div>
     </n-card>
+    <n-card class="section-card">
+      <template #header>
+        <div style=" display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <span>端口映射</span>
+          <n-input style="max-width: 250px" placeholder="关键字"
+                   v-model:value="mapping.param.keyword"></n-input>
+          <n-select v-model="mapping.param.enabled" :clearable="true" style="width: 100px;display: inline-block"
+                    :options="[ { label: '已启用', value: 'true' }, { label: '已禁用', value: 'false' }, ]"
+                    @update:value="value => mapping.param.enabled = value === null||value===undefined ? value : value === 'true'">
+          </n-select>
+          <n-button type="info" quaternary @click="reloadMappingData">查询</n-button>
+        </div>
+      </template>
+      <template #header-extra>
+        <ColumnVisibility :columns="mapping.columns"/>
+        <n-button type="primary" quaternary @click="handleMappingAdd">新增</n-button>
+      </template>
+
+      <SupperTable
+          :columns="mapping.columns.filter((item:SuperTableColumn<ListMappingResponse>)=>!item.hidden)"
+          :data="mapping.data"
+          :bordered="false"
+          :single-line="false"
+      >
+        <template #render="{row,column}">
+          <template v-if="column.key==='enabled'">
+            <n-switch :value="row.enabled" @update:value="(value)=>handleMappingChangeEnable(row,value)"
+                      :loading="store.apiState.service.mapping.enable.requesting.has(row.id)">
+              <template #checked>
+                已启用
+              </template>
+              <template #unchecked>
+                已禁用
+              </template>
+            </n-switch>
+          </template>
+          <template v-else-if="column.key==='createdAt'||column.key==='updatedAt'">
+            {{ formatDateTime(row.createdAt) }}
+          </template>
+          <template v-else-if="column.key==='updatedAt'">
+            {{ formatDateTime(row.updatedAt) }}
+          </template>
+          <template v-else-if="column.key==='actions'">
+            <n-button type="info" quaternary @click="()=>handleMappingEdit(row)">编辑</n-button>
+            <n-popconfirm
+                @positive-click="()=>handleMappingDelete(row)"
+            >
+              <template #trigger>
+                <n-button type="error" quaternary>删除</n-button>
+              </template>
+              删除后对应用户将无法连接,确定要删除吗?
+            </n-popconfirm>
+          </template>
+          <template v-else>
+            {{ row[column.key as keyof ListMappingResponse] }}
+          </template>
+        </template>
+      </SupperTable>
+      <div style="margin-block-start: 4px">
+        <n-pagination
+            v-model:page="mapping.page.current"
+            v-model:page-size="mapping.page.pageSize"
+            :item-count="mapping.page.total"
+            show-size-picker
+            :page-sizes="mapping.page.pageSizes"
+            @update:page="loadConfig"
+            @update:page-size="handleMappingPageSizeChange"
+        />
+      </div>
+<!--      todo 新增详情-->
+    </n-card>
     <NDrawer
-        v-model:show="infoDesc.show"
+        v-model:show="clientInfoDesc.show"
         placement="right"
         :width="'50%'"
         :to="'.'+contentContainer"
         :auto-focus="false"
     >
-      <NDrawerContent :title="infoDesc.title" closable>
+      <NDrawerContent :title="clientInfoDesc.title" closable>
         <Detail
-            :data="infoDesc.data"
-            @success="infoSuccess"
-            @close="()=>infoDesc.show = false"
+            :data="clientInfoDesc.data"
+            @success="infoClientSuccess"
+            @close="()=>clientInfoDesc.show = false"
         />
       </NDrawerContent>
     </NDrawer>

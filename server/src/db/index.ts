@@ -1,13 +1,9 @@
 import { Sequelize } from 'sequelize'
+import {sequelize} from "@/appContext";
 
 type InitDB = (sequelize: Sequelize) => void | Promise<void>
 
 export async function initDatabase(): Promise<void> {
-  const sequelize = new Sequelize({
-    dialect: 'sqlite',
-    storage: 'database.sqlite',
-    logging: true,
-  })
   // Vite 编译时扫描当前目录及子目录
   const modules = import.meta.glob('./*Entity.{ts,js}', {
     eager: false,

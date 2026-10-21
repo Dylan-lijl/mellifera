@@ -5,14 +5,14 @@ import {
     type ListClientResponse,
     type CreateClientRequest,
     CreateClientDefinition,
-    type UpdateClientRequest, UpdateClientDefinition, EnabledDefinition,
-    SearchAndPageDefinition, type SearchAndPageRequest, type DeleteByIdRequest
+    type UpdateClientRequest, UpdateClientDefinition, EnabledDefinition,type DeleteByIdRequest
 } from "@mellifera/common/entity"
 import {ClientEntity, type ClientField} from '@/db/ClientEntity'
 import {ResultApiException} from "@mellifera/common/CustomException";
 import {ID_NOT_EXIST_EXCEPTION, UPDATE_DATA_EXCEPTION} from "@mellifera/common/ResultCode";
 import {Op, type WhereOptions,} from "sequelize";
 import type {PageData} from "@mellifera/common/Result";
+import {type ListClientRequest, ListClientRequestDefinition} from "@mellifera/common/entity";
 
 export class ClientService {
 
@@ -20,10 +20,10 @@ export class ClientService {
      * 查询全部连接配置。
      */
     searchAndPage = async (
-        request: SearchAndPageRequest,
+        request: ListClientRequest,
     )=>{
-        const {keyword, pageSize, pageNum, id} =
-            SearchAndPageDefinition.parse(request)
+        const {keyword, pageSize, pageNum, id,enabled} =
+            ListClientRequestDefinition.parse(request)
         const where: WhereOptions<ClientEntity> = {
             ...(id != null ? {id} : {}),
             ...(keyword
@@ -35,6 +35,7 @@ export class ClientService {
                     ],
                 }
                 : {}),
+            ...(enabled===true||enabled===false?{enabled}:{})
         }
         const order: [[ClientField, 'ASC' | 'DESC']] = [
             ['updatedAt', 'DESC'],

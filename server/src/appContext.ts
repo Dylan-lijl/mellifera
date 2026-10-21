@@ -1,8 +1,13 @@
 import {app, type BrowserWindow} from "electron";
 import type {AppInfo} from "@mellifera/common/types";
+import { Sequelize } from 'sequelize'
 
 let map: { win?: BrowserWindow, quit?: () => any } = {};
-
+export const sequelize = new Sequelize({
+    dialect: 'sqlite',
+    storage: 'database.sqlite',
+    logging: true,
+});
 export default {
     setMainWindow(win: BrowserWindow) {
         map.win = win;
