@@ -1,6 +1,6 @@
-import {CreateClientRequest, CreateConnectionRequest} from "./entity";
+import {CreateClientRequest, CreateConnectionRequest, CreateMappingRequest} from "./entity";
 import {StateData} from "./stateSync";
-import {runState} from "./constant";
+import {runState, transportProtocol} from "./constant";
 
 export function createConnection(): CreateConnectionRequest {
     return {
@@ -12,14 +12,16 @@ export function createConnection(): CreateConnectionRequest {
         description: '',
     }
 }
-export function createClient():CreateClientRequest{
-    return  {
-        name:"未命名",
+
+export function createClient(): CreateClientRequest {
+    return {
+        name: "未命名",
         token: '',
         enabled: true,
         description: '',
     }
 }
+
 export function createSyncState(): StateData {
     return {
         system: {
@@ -35,5 +37,17 @@ export function createSyncState(): StateData {
             hosts: [],
             error: null,
         }
+    }
+}
+
+export function createMapping(): CreateMappingRequest {
+    return {
+        clientId: 0,
+        listenPort: 0,
+        name: "未命名",
+        enabled: true,
+        protocol: transportProtocol.tcp.value,
+        targetHost: "127.0.0.1",
+        targetPort: 80
     }
 }

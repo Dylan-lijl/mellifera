@@ -28,7 +28,7 @@ import {
   networkTypeOptions,
   runState,
   runStateOptions,
-  type RunStateType
+  type RunStateType, transportProtocolOptions
 } from "@mellifera/common/constant";
 import {useStore} from "@/store";
 import type {NetworkIpInfo} from "@mellifera/common/types";
@@ -37,6 +37,7 @@ import Detail from "./detail.vue";
 import {createPagination} from "@mellifera/common/util";
 import {formatDateTime, showError} from "@/util";
 import type {SuperTableColumn} from "@/types";
+import MappingDetail from "@/views/server/mappingDetail.vue";
 
 const message = useMessage()
 const store = useStore();
@@ -142,6 +143,12 @@ const client = reactive<{
       width: 'auto',
     },
     {
+      title: '启用',
+      key: 'enabled',
+      minWidth: 70,
+      resizable: true,
+    },
+    {
       title: 'ID',
       key: 'id',
       minWidth: 80,
@@ -158,12 +165,6 @@ const client = reactive<{
       title: '认证令牌',
       key: 'token',
       minWidth: 170,
-      resizable: true,
-    },
-    {
-      title: '状态',
-      key: 'enabled',
-      minWidth: 110,
       resizable: true,
     },
     {
@@ -191,6 +192,9 @@ const client = reactive<{
     },
   ]
 });
+watch(() => client.checkedRowId, () => {
+  loadMappingData();
+})
 
 async function loadClientData() {
   if (store.apiState.service.client.searchAndPage.requesting.size) {
@@ -273,6 +277,7 @@ function infoClientSuccess(item: ListClientResponse | null) {
   }
   clientInfoDesc.value.show = false;
 }
+
 //=================== mapping ===========================
 const mappingInfoDesc = ref({
   title: "",
@@ -295,53 +300,59 @@ const mapping = reactive<{
   checkedRowId: null,
   columns: [
     {
+      title: '启用',
+      key: 'enabled',
+      minWidth: 70,
+      resizable: true,
+    },
+    {
       title: 'ID',
       key: 'id',
       minWidth: 80,
       resizable: true,
       hidden: true,
-    },{
+    }, {
       title: '客户id',
       key: 'clientId',
       minWidth: 80,
       resizable: true,
       hidden: true,
+    }, {
+      title: '客户名称',
+      key: 'clientName',
+      minWidth: 150,
+      resizable: true,
     },
     {
       title: '名称',
       key: 'name',
       minWidth: 150,
       resizable: true,
-    },{
-      title: '协议',
+    }, {
+      title: '传输协议',
       key: 'protocol',
-      minWidth: 150,
+      minWidth: 90,
       resizable: true,
     },
     {
       title: '映射端口',
       key: 'listenPort',
-      minWidth: 170,
+      minWidth: 90,
       resizable: true,
-    },{
+    }, {
       title: '目标主机',
       key: 'targetHost',
       minWidth: 170,
       resizable: true,
-    },{
+    }, {
       title: '目标端口',
       key: 'targetPort',
-      minWidth: 170,
+      minWidth: 90,
       resizable: true,
     },
     {
       title: '禁用端口',
       key: 'disabledPorts',
-      minWidth: 110,
-      resizable: true,
-    },{
-      title: '状态',
-      key: 'enabled',
       minWidth: 110,
       resizable: true,
     },
@@ -375,7 +386,10 @@ async function loadMappingData() {
   if (store.apiState.service.mapping.searchAndPage.requesting.size) {
     return;
   }
-  const data = await store.service.mapping.searchAndPage(mapping.page.get(mapping.param))
+  const data = await store.service.mapping.searchAndPage(mapping.page.get({
+    ...mapping.param,
+    clientId: client.checkedRowId
+  }))
       .errorMessage((r) => showError(message, r))
       .get();
   mapping.data = data.list;
@@ -453,9 +467,10 @@ function infoMappingSuccess(item: ListMappingResponse | null) {
   mappingInfoDesc.value.show = false;
 }
 
-onMounted(() => {
-  loadConfig()
-  loadMappingData()
+onMounted(async () => {
+  await loadConfig()
+  await loadClientData()
+  await loadMappingData()
 })
 </script>
 <template>
@@ -625,8 +640,9 @@ onMounted(() => {
           <span>客户端</span>
           <n-input style="max-width: 250px" placeholder="关键字"
                    v-model:value="client.param.keyword"></n-input>
-          <n-select v-model="client.param.enabled" :clearable="true" style="width: 100px;display: inline-block"
-                    :options="[ { label: '已启用', value: 'true' }, { label: '已禁用', value: 'false' }, ]"
+          <n-select v-model="client.param.enabled" :clearable="true" style="width: 70px;display: inline-block"
+                    :options="[ { label: '开', value: 'true' }, { label: '关', value: 'false' }, ]"
+                    placeholder="启用"
                     @update:value="value => client.param.enabled = value === null||value===undefined ? value : value === 'true'">
           </n-select>
           <n-button type="info" quaternary @click="reloadClientData">查询</n-button>
@@ -655,10 +671,10 @@ onMounted(() => {
             <n-switch :value="row.enabled" @update:value="(value)=>handleClientChangeEnable(row,value)"
                       :loading="store.apiState.service.client.enable.requesting.has(row.id)">
               <template #checked>
-                已启用
+                开
               </template>
               <template #unchecked>
-                已禁用
+                关
               </template>
             </n-switch>
           </template>
@@ -702,8 +718,9 @@ onMounted(() => {
           <span>端口映射</span>
           <n-input style="max-width: 250px" placeholder="关键字"
                    v-model:value="mapping.param.keyword"></n-input>
-          <n-select v-model="mapping.param.enabled" :clearable="true" style="width: 100px;display: inline-block"
-                    :options="[ { label: '已启用', value: 'true' }, { label: '已禁用', value: 'false' }, ]"
+          <n-select v-model="mapping.param.enabled" :clearable="true" style="width: 70px;display: inline-block"
+                    placeholder="启用"
+                    :options="[ { label: '开', value: 'true' }, { label: '关', value: 'false' }, ]"
                     @update:value="value => mapping.param.enabled = value === null||value===undefined ? value : value === 'true'">
           </n-select>
           <n-button type="info" quaternary @click="reloadMappingData">查询</n-button>
@@ -711,7 +728,7 @@ onMounted(() => {
       </template>
       <template #header-extra>
         <ColumnVisibility :columns="mapping.columns"/>
-        <n-button type="primary" quaternary @click="handleMappingAdd">新增</n-button>
+        <n-button type="primary" quaternary @click="handleMappingAdd" :disabled="!client.checkedRowId">新增</n-button>
       </template>
 
       <SupperTable
@@ -725,15 +742,18 @@ onMounted(() => {
             <n-switch :value="row.enabled" @update:value="(value)=>handleMappingChangeEnable(row,value)"
                       :loading="store.apiState.service.mapping.enable.requesting.has(row.id)">
               <template #checked>
-                已启用
+                开
               </template>
               <template #unchecked>
-                已禁用
+                关
               </template>
             </n-switch>
           </template>
-          <template v-else-if="column.key==='createdAt'||column.key==='updatedAt'">
+          <template v-else-if="column.key==='createdAt'">
             {{ formatDateTime(row.createdAt) }}
+          </template>
+          <template v-else-if="column.key==='protocol'">
+            {{ transportProtocolOptions.find(item => item.value === row.protocol)?.label ?? '未知' }}
           </template>
           <template v-else-if="column.key==='updatedAt'">
             {{ formatDateTime(row.updatedAt) }}
@@ -765,7 +785,6 @@ onMounted(() => {
             @update:page-size="handleMappingPageSizeChange"
         />
       </div>
-<!--      todo 新增详情-->
     </n-card>
     <NDrawer
         v-model:show="clientInfoDesc.show"
@@ -779,6 +798,22 @@ onMounted(() => {
             :data="clientInfoDesc.data"
             @success="infoClientSuccess"
             @close="()=>clientInfoDesc.show = false"
+        />
+      </NDrawerContent>
+    </NDrawer>
+    <NDrawer
+        v-model:show="mappingInfoDesc.show"
+        placement="right"
+        :width="'50%'"
+        :to="'.'+contentContainer"
+        :auto-focus="false"
+    >
+      <NDrawerContent :title="mappingInfoDesc.title" closable>
+        <MappingDetail
+            :data="mappingInfoDesc.data"
+            :clientId="client.checkedRowId"
+            @success="infoMappingSuccess"
+            @close="()=>mappingInfoDesc.show = false"
         />
       </NDrawerContent>
     </NDrawer>

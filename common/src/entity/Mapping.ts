@@ -43,7 +43,8 @@ export interface CreateMappingRequest extends z.input<typeof CreateMappingDefini
 
 /** 更新 */
 export const UpdateMappingDefinition =
-    CreateMappingDefinition.partial().extend({
+    CreateMappingDefinition
+        .omit({clientId: true}).partial().extend({
         id: MappingDefinition.shape.id,
     })
 

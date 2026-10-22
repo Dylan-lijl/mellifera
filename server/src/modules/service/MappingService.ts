@@ -95,6 +95,9 @@ export class MappingService {
                 type: QueryTypes.SELECT,
             }),
         ])
+        rows.forEach(row => {
+            row.enabled = !!row.enabled
+        })
         return {
             list: rows,
             total: Number(countResult[0]?.total ?? 0),
