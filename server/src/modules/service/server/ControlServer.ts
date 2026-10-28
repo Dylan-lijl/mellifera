@@ -1,275 +1,446 @@
+import {RpcPeer} from "@/rpc/peer/RpcPeer"
+import type {RpcServerContext} from "@/rpc/type"
+import {createServer, type IncomingMessage, type Server as HttpServer,} from 'node:http'
+import WebSocket, {WebSocketServer,} from 'ws'
+import {RpcRouter} from "@/rpc/router/RpcRouter";
+import {WebSocketTransport} from "@/rpc/transport/WebSocketTransport";
+import type {Duplex} from "node:stream";
 
-import net from 'node:net'
-import {
-    createServer,
-    type Server as HttpServer,
-} from 'node:http'
-import {
-    WebSocket,
-    WebSocketServer,
-    type RawData,
-} from 'ws'
-import type { Duplex } from 'node:stream'
-import type { IncomingMessage } from 'node:http'
-
-export interface ControlMessage {
-    type: string
-    id?: string
-    data?: unknown
+/**
+ * create 方法的返回值。
+ *
+ * key：连接管理使用的唯一标识。
+ * context：绑定到 RpcPeer 的上下文。
+ */
+export interface CreateResult {
+    key: any
+    context: RpcServerContext
 }
 
-interface Listener {
-    host: string
-    server: HttpServer
-    wsServer: WebSocketServer
-    started: boolean
+/**
+ * 创建客户端连接上下文。
+ *
+ * 返回 null 表示认证失败。
+ */
+export type Creator = (
+    request: IncomingMessage,
+) => Promise<CreateResult | null>
+
+/**
+ * 监听配置。
+ */
+export interface ControlServerOptions {
+    readonly hosts: readonly string[]
+    readonly port: number
 }
 
+/**
+ * ControlServer。
+ *
+ * 一个 key 同一时间只对应一个有效的 RpcPeer。
+ */
 export class ControlServer {
-    private readonly listeners: Listener[] = []
-    private readonly clients = new Set<WebSocket>()
+    /**
+     * 唯一的连接管理 Map。
+     *
+     * key -> RpcPeer
+     */
+    private readonly clients = new Map<
+        number,
+        RpcPeer<RpcServerContext>
+    >()
 
-    private starting = false
+    /**
+     * HTTP / WebSocket 监听器。
+     */
+    private readonly listeners: Array<{
+        server: HttpServer
+        wsServer: WebSocketServer
+        started: boolean
+    }> = []
+
+    /**
+     * 正在初始化的连接。
+     */
+    private readonly pendingPeers = new Set<Promise<void>>()
+
+    private started = false
     private stopping = false
 
-    onMessage?: (
-        client: WebSocket,
-        message: ControlMessage,
-    ) => void
+    private startPromise?: Promise<void>
+    private stopPromise?: Promise<void>
+    private readonly creator: Creator;
 
-    onClientConnected?: (client: WebSocket) => void
-    onClientDisconnected?: (client: WebSocket) => void
-    onClientError?: (client: WebSocket, error: Error) => void
-    onServerError?: (host: string, error: Error) => void
+    constructor(creator: Creator) {
+        this.creator = creator;
+    }
 
+    /**
+     * 启动监听。
+     */
+    async start(options: ControlServerOptions): Promise<void> {
+        if (this.started) {
+            throw new Error('ControlServer 已启动')
+        }
+
+        if (this.stopping) {
+            throw new Error('ControlServer 正在停止')
+        }
+
+        if (this.startPromise) {
+            return this.startPromise
+        }
+
+        this.startPromise = this.startInternal(options)
+
+        try {
+            await this.startPromise
+        } finally {
+            this.startPromise = undefined
+        }
+    }
+
+    private async startInternal(
+        options: ControlServerOptions,
+    ): Promise<void> {
+        const {hosts, port} = options
+
+        if (hosts.length === 0) {
+            throw new Error('至少需要配置一个监听地址')
+        }
+
+        if (!Number.isInteger(port) || port < 0 || port > 65535) {
+            throw new Error('监听端口无效')
+        }
+
+        const uniqueHosts = [...new Set(hosts)]
+        const startedListeners: typeof this.listeners = []
+
+        try {
+            for (const host of uniqueHosts) {
+                const server = createServer()
+
+                const wsServer = new WebSocketServer({
+                    noServer: true,
+                    maxPayload: 1024 * 1024,
+                })
+
+                const listener = {
+                    server,
+                    wsServer,
+                    started: false,
+                }
+
+                server.on('upgrade', (request, socket, head) => {
+                    void this.handleUpgrade(
+                        listener,
+                        request,
+                        socket,
+                        head,
+                    )
+                })
+
+                server.on('error', error => {
+                    this.reportError(error)
+                })
+
+                wsServer.on('error', error => {
+                    this.reportError(error)
+                })
+
+                this.listeners.push(listener)
+
+                await this.listen(server, host, port)
+
+                listener.started = true
+                startedListeners.push(listener)
+            }
+
+            this.started = true
+        } catch (error) {
+            await Promise.allSettled(
+                startedListeners.map(listener =>
+                    this.closeListener(listener),
+                ),
+            )
+
+            this.listeners.length = 0
+
+            throw error
+        }
+    }
+
+    private listen(
+        server: HttpServer,
+        host: string,
+        port: number,
+    ): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const onError = (error: Error) => {
+                server.off('listening', onListening)
+                reject(error)
+            }
+
+            const onListening = () => {
+                server.off('error', onError)
+                resolve()
+            }
+
+            server.once('error', onError)
+            server.once('listening', onListening)
+            server.listen(port, host)
+        })
+    }
+
+    /**
+     * 处理 WebSocket 握手。
+     *
+     * create 负责认证并返回 key 和 context。
+     */
+    private async handleUpgrade(
+        listener: {
+            server: HttpServer
+            wsServer: WebSocketServer
+            started: boolean
+        },
+        request: IncomingMessage,
+        socket: Duplex,
+        head: Buffer,
+    ): Promise<void> {
+        if (this.stopping) {
+            this.rejectUpgrade(socket, 503, 'Service Unavailable')
+            return
+        }
+
+        let result;
+
+        try {
+            result = await this.creator(request)
+        } catch (error) {
+            this.reportError(error)
+            this.rejectUpgrade(socket, 500, 'Internal Server Error')
+            return
+        }
+
+        if (!result) {
+            this.rejectUpgrade(socket, 401, 'Unauthorized')
+            return
+        }
+
+        if (this.stopping || socket.destroyed) {
+            socket.destroy()
+            return
+        }
+
+        listener.wsServer.handleUpgrade(
+            request,
+            socket,
+            head,
+            ws => {
+                this.trackPeerInitialization(
+                    this.attachClient(
+                        ws,
+                        result.key,
+                        result.context,
+                    ),
+                )
+            },
+        )
+    }
+
+    /**
+     * 将 WebSocket 转换为 RpcPeer 并注册。
+     *
+     * 这里使用项目现有的 RpcPeer 创建方式，
+     * context 必须绑定到 Peer。
+     */
+    private async attachClient(
+        socket: WebSocket,
+        key: any,
+        context: RpcServerContext,
+    ): Promise<void> {
+        let peer: RpcPeer<RpcServerContext> | undefined
+        try {
+            peer = await this.createPeer(socket, context)
+            if (this.stopping || socket.readyState !== WebSocket.OPEN) {
+                await this.closePeer(peer)
+                return
+            }
+            const previous = this.clients.get(key)
+            /*
+             * 新 Peer 先注册。
+             */
+            this.clients.set(key, peer)
+
+            /*
+             * 新连接替换旧连接。
+             */
+            if (previous && previous !== peer) {
+                await this.closePeer(previous)
+            }
+
+            /*
+             * 旧连接的关闭事件不能删除新连接。
+             */
+            socket.once('close', () => {
+                if (this.clients.get(key) === peer) {
+                    this.clients.delete(key)
+                }
+            })
+
+            socket.once('error', error => {
+                this.reportError(error)
+            })
+        } catch (error) {
+            this.reportError(error)
+
+            if (peer) {
+                await this.closePeerSafely(peer)
+            } else if (socket.readyState !== WebSocket.CLOSED) {
+                socket.terminate()
+            }
+        }
+    }
+
+    /**
+     * 创建 RpcPeer。
+     *
+     * 请将此方法体替换为你项目现有的 RpcPeer 初始化逻辑。
+     */
+    private createPeer(
+        socket: WebSocket,
+        context: RpcServerContext,
+    ): Promise<RpcPeer<RpcServerContext>> | RpcPeer<RpcServerContext> {
+        const router = new RpcRouter<RpcServerContext>()
+        return new RpcPeer(new WebSocketTransport(socket), router, {context});
+    }
+
+    /**
+     * 关闭 RpcPeer。
+     *
+     * 请替换为项目中现有的 Peer 关闭方法。
+     */
+    private async closePeer(
+        peer: RpcPeer<RpcServerContext>,
+    ): Promise<void> {
+        peer.close()
+    }
+
+    private async closePeerSafely(
+        peer: RpcPeer<RpcServerContext>,
+    ): Promise<void> {
+        try {
+            await this.closePeer(peer)
+        } catch (error) {
+            this.reportError(error)
+        }
+    }
+
+    /**
+     * 获取客户端 Peer。
+     */
+    getClient(
+        key: number,
+    ): RpcPeer<RpcServerContext> | undefined {
+        return this.clients.get(key)
+    }
+
+    /**
+     * 获取当前连接数。
+     */
     get clientCount(): number {
         return this.clients.size
     }
 
-    async start(config: {port:number,hosts:string[]}): Promise<void> {
-        if (
-            this.starting ||
-            this.stopping ||
-            this.listeners.length > 0
-        ) {
-            throw new Error('ControlServer is already started or busy')
-        }
+    /**
+     * 跟踪异步初始化任务。
+     */
+    private trackPeerInitialization(
+        task: Promise<void>,
+    ): void {
+        this.pendingPeers.add(task)
 
-        this.starting = true
-
-        try {
-            for (const host of config.hosts) {
-                const listener = this.createListener(host)
-                this.listeners.push(listener)
-
-                try {
-                    await this.startListener(listener, config.port)
-
-                    const address = listener.server.address()
-
-                    if (!address || typeof address === 'string') {
-                        throw new Error(`无法获取监听地址：${host}`)
-                    }
-                } catch (error) {
-                    throw new Error(
-                        `监听 ${host}:${config.port} 失败：${
-                            error instanceof Error
-                                ? error.message
-                                : String(error)
-                        }`,
-                        { cause: error },
-                    )
-                }
-            }
-        } catch (error) {
-            await this.closeListeners()
-            throw error
-        } finally {
-            this.starting = false
-        }
-    }
-
-    send(
-        client: WebSocket,
-        message: ControlMessage,
-    ): boolean {
-        if (client.readyState !== WebSocket.OPEN) {
-            return false
-        }
-
-        client.send(JSON.stringify(message))
-        return true
-    }
-
-    broadcast(message: ControlMessage): void {
-        const data = JSON.stringify(message)
-
-        for (const client of this.clients) {
-            if (client.readyState === WebSocket.OPEN) {
-                client.send(data)
-            }
-        }
-    }
-
-    async stop(): Promise<void> {
-        if (this.stopping) {
-            return
-        }
-
-        if (this.starting) {
-            throw new Error('ControlServer is starting')
-        }
-
-        this.stopping = true
-
-        try {
-            await this.closeListeners()
-        } finally {
-            this.stopping = false
-        }
-    }
-
-    private createListener(host: string): Listener {
-        const server = createServer()
-
-        const wsServer = new WebSocketServer({
-            noServer: true,
-            maxPayload: 1024 * 1024,
-        })
-
-        server.on('upgrade', (
-            request: IncomingMessage,
-            socket: Duplex,
-            head: Buffer,
-        ) => {
-            if (this.stopping) {
-                socket.destroy()
-                return
-            }
-
-            wsServer.handleUpgrade(
-                request,
-                socket,
-                head,
-                client => {
-                    wsServer.emit('connection', client, request)
-                },
-            )
-        })
-
-        wsServer.on('connection', client => {
-            this.clients.add(client)
-            this.onClientConnected?.(client)
-
-            client.on('message', (raw: RawData) => {
-                try {
-                    const message: unknown = JSON.parse(
-                        raw.toString(),
-                    )
-
-                    if (
-                        typeof message !== 'object' ||
-                        message === null ||
-                        !('type' in message) ||
-                        typeof message.type !== 'string'
-                    ) {
-                        throw new Error('Invalid control message')
-                    }
-
-                    this.onMessage?.(
-                        client,
-                        message as ControlMessage,
-                    )
-                } catch {
-                    // 忽略格式错误的消息。
-                    // 后续可以在这里增加日志或错误响应。
-                }
-            })
-
-            client.on('close', () => {
-                this.clients.delete(client)
-                this.onClientDisconnected?.(client)
-            })
-
-            client.on('error', error => {
-                this.onClientError?.(client, error)
-            })
-        })
-
-        return {
-            host,
-            server,
-            wsServer,
-            started: false,
-        }
-    }
-
-    private async startListener(
-        listener: Listener,
-        port: number,
-    ): Promise<void> {
-        const { server, host } = listener
-
-        server.on('error', error => {
-            if (listener.started) {
-                this.onServerError?.(host, error)
-            }
-        })
-
-        await new Promise<void>((resolve, reject) => {
-            const onListening = () => {
-                cleanup()
-                listener.started = true
-                resolve()
-            }
-
-            const onError = (error: Error) => {
-                cleanup()
-                reject(error)
-            }
-
-            const cleanup = () => {
-                server.off('listening', onListening)
-                server.off('error', onError)
-            }
-
-            server.once('listening', onListening)
-            server.once('error', onError)
-
-            server.listen({
-                host,
-                port,
-                ...(net.isIP(host) === 6
-                    ? { ipv6Only: true }
-                    : {}),
-            })
-        })
-    }
-
-    private async closeListeners(): Promise<void> {
-        const listeners = this.listeners.splice(0)
-
-        for (const client of this.clients) {
-            client.terminate()
-        }
-
-        this.clients.clear()
-
-        await Promise.all(
-            listeners.map(listener => this.closeListener(listener)),
+        void task.then(
+            () => this.pendingPeers.delete(task),
+            error => {
+                this.pendingPeers.delete(task)
+                this.reportError(error)
+            },
         )
     }
 
+    /**
+     * 停止服务。
+     */
+    stop(): Promise<void> {
+        if (this.stopPromise) {
+            return this.stopPromise
+        }
+
+        this.stopping = true
+        this.stopPromise = this.stopInternal()
+
+        return this.stopPromise
+    }
+
+    private async stopInternal(): Promise<void> {
+        /*
+         * 等待启动流程结束，避免 start/stop 竞态。
+         */
+        if (this.startPromise) {
+            await this.startPromise.catch(() => undefined)
+        }
+
+        /*
+         * 关闭所有监听器。
+         */
+        await Promise.allSettled(
+            this.listeners.map(listener =>
+                this.closeListener(listener),
+            ),
+        )
+
+        this.listeners.length = 0
+
+        /*
+         * 等待已开始的 Peer 初始化结束。
+         */
+        while (this.pendingPeers.size > 0) {
+            await Promise.allSettled([
+                ...this.pendingPeers,
+            ])
+        }
+
+        /*
+         * 清理当前连接。
+         */
+        const peers = [...this.clients.values()]
+        this.clients.clear()
+
+        await Promise.allSettled(
+            peers.map(peer => this.closePeerSafely(peer)),
+        )
+
+        this.started = false
+    }
+
     private async closeListener(
-        listener: Listener,
+        listener: {
+            server: HttpServer
+            wsServer: WebSocketServer
+            started: boolean
+        },
     ): Promise<void> {
-        const { server, wsServer } = listener
+        const {server, wsServer} = listener
 
-        const closeWebSocket = new Promise<void>(resolve => {
-            wsServer.close(() => resolve())
-        })
+        /*
+         * 先关闭 WebSocket 客户端。
+         */
+        for (const socket of wsServer.clients) {
+            socket.terminate()
+        }
 
-        const closeHttp = new Promise<void>(resolve => {
+        const serverClose = new Promise<void>(resolve => {
             if (!server.listening) {
                 resolve()
                 return
@@ -278,7 +449,68 @@ export class ControlServer {
             server.close(() => resolve())
         })
 
-        await Promise.all([closeWebSocket, closeHttp])
+        const wsClose = new Promise<void>(resolve => {
+            try {
+                wsServer.close(() => resolve())
+            } catch {
+                resolve()
+            }
+        })
+
+        await Promise.all([serverClose, wsClose])
+
         listener.started = false
+    }
+
+    private rejectUpgrade(
+        socket: Duplex,
+        statusCode: number,
+        statusText: string,
+    ): void {
+        if (socket.destroyed) {
+            return
+        }
+
+        socket.end(
+            `HTTP/1.1 ${statusCode} ${statusText}\r\n` +
+            'Connection: close\r\n' +
+            'Content-Length: 0\r\n' +
+            '\r\n',
+        )
+    }
+
+    private reportError(error: unknown): void {
+        const normalized = error instanceof Error
+            ? error
+            : new Error(String(error))
+
+        // 可以在这里接入项目现有的 logger。
+        console.error(normalized)
+    }
+
+    async closeItem(token: string) {
+        const item = this.findByToken(token);
+        if (!item) {
+            return
+        }
+        await this.closePeer(item)
+    }
+
+    findByToken(token: any) {
+        let key;
+        for (const [k, v] of this.clients) {
+            if (v.getContext()?.token === token) {
+                key = k;
+                break
+            }
+        }
+        if (!key) {
+            return
+        }
+        const item = this.clients.get(key);
+        if (!item) {
+            return
+        }
+        return item;
     }
 }

@@ -27,10 +27,10 @@ export const networkType = {
 export const networkTypeOptions = Object.values(networkType);
 export type NetworkType = typeof networkTypeOptions[number]["value"];
 export const runState = {
-    idle: {label: '空闲', value: 1, enabled: true, type: "default"},
-    starting: {label: '启动中', value: 2, enabled: true, type: "warning"},
-    running: {label: '已运行', value: 3, enabled: true, type: "success"},
-    stopping: {label: '停止中', value: 4, enabled: true, type: "error"},
+    idle: {label: '空闲', label2:'未连接',value: 1, enabled: true, type: "default"},
+    starting: {label: '启动中',label2:'连接中', value: 2, enabled: true, type: "warning"},
+    running: {label: '已运行',label2:'已连接', value: 3, enabled: true, type: "success"},
+    stopping: {label: '停止中',label2:'断开中', value: 4, enabled: true, type: "error"},
 } as const
 export const runStateOptions = Object.values(runState);
 export type RunStateType = typeof runStateOptions[number]["value"];

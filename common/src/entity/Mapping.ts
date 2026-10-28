@@ -64,9 +64,18 @@ export interface ListMappingResponse extends z.input<typeof ListMappingDefinitio
 }
 
 export const ListMappingRequestDefinition = SearchAndPageDefinition.extend({
+    id: z.int().positive().nullish(),
     enabled: z.boolean().nullish(),
-    clientId: z.boolean().nullish(),
+    clientId: z.int().positive().nullish(),
 }).describe("查询")
 
 export interface ListMappingRequest extends z.input<typeof ListMappingRequestDefinition> {
+}
+export const ListAllMappingRequestDefinition = z.object({
+    id: z.int().positive().nullish(),
+    enabled: z.boolean().nullish(),
+    clientId: z.int().positive().nullish(),
+}).describe("查询")
+
+export interface ListAllMappingRequest extends z.input<typeof ListAllMappingRequestDefinition> {
 }

@@ -9,7 +9,7 @@ import {
     UpdateMappingDefinition,
     EnabledDefinition,
     type DeleteByIdRequest,
-    type ListMappingRequest,
+    type ListMappingRequest, type ListAllMappingRequest, ListAllMappingRequestDefinition
 } from '@mellifera/common/entity'
 
 import {MappingEntity} from '@/db/MappingEntity'
@@ -19,13 +19,27 @@ import {
     UPDATE_DATA_EXCEPTION,
 } from '@mellifera/common/ResultCode'
 
-import {QueryTypes} from 'sequelize'
+import {QueryTypes, type WhereOptions} from 'sequelize'
 import type {PageData} from '@mellifera/common/Result'
 import {sequelize} from "@/appContext";
 import {escapeLike} from "@mellifera/common/util";
 
 export class MappingService {
-
+    list = async (request: ListAllMappingRequest) => {
+        const {id, clientId, enabled} =
+            ListAllMappingRequestDefinition.parse(request);
+        const where: WhereOptions<MappingEntity> = {};
+        if (id) {
+            where.id = id;
+        }
+        if (clientId) {
+            where.clientId = clientId;
+        }
+        if (enabled !== undefined && enabled !== null) {
+            where.enabled = enabled;
+        }
+        return MappingEntity.findAll({where});
+    }
     /**
      * 查询映射列表。
      */
@@ -195,6 +209,7 @@ export class MappingService {
 
         await entity.update({enabled})
     }
+
 }
 
 export default new MappingService()

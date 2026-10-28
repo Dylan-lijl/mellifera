@@ -8,6 +8,7 @@
     "lib": [
       "ES2023"
     ],
+    "experimentalDecorators": true,
     "moduleResolution": "Bundler",
     "strict": true,
     "target": "ES2022",
@@ -15,16 +16,17 @@
     "declaration": true,
     "skipLibCheck": true,
     "types": [
-      "node","vite/client"
+      "node",
+      "vite/client"
     ],
     "paths": {
       "@/*": [
         "./src/*"
       ],
-      "@common/*": ["../common/src/*"]
     }
   },
   "include": [
-    "src","electron.vite.config.ts"
+    "src",
+    "electron.vite.config.ts",
   ]
 }

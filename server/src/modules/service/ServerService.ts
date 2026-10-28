@@ -1,14 +1,23 @@
 import {getData, saveData} from "@/utils/Store";
 import StateSyncManager from "@/StateSyncManager";
-import {type ServerConfig} from "@mellifera/common/entity";
+import {type ServerConfig, type TokenRequest} from "@mellifera/common/entity";
 import {networkType, runState} from "@mellifera/common/constant";
-import {ControlServer} from "@/modules/service/server/ControlServer";
+import {
+    ControlServer, type CreateResult, type Creator
+} from "@/modules/service/server/ControlServer";
 import {ResultApiException} from "@mellifera/common/CustomException";
-import {FAILED_TO_START, FAILED_TO_STOP, DATA_NOT_FOUND_EXCEPTION, INVALID_PORT} from "@mellifera/common/ResultCode";
+import {
+    FAILED_TO_START,
+    FAILED_TO_STOP,
+    DATA_NOT_FOUND_EXCEPTION,
+    INVALID_PORT,
+    NOT_CONNECTED
+} from "@mellifera/common/ResultCode";
 import type {NetworkIpInfo} from "@mellifera/common/types";
 import * as os from "node:os";
 import {isIP} from "node:net";
 import type {StateData} from "@mellifera/common/stateSync";
+import {ClientEntity} from "@/db/ClientEntity";
 
 function resetState(state: StateData): void {
     state.server.running = runState.idle.value;
@@ -17,11 +26,34 @@ function resetState(state: StateData): void {
     state.server.error = null;
 }
 
+const createContext: Creator = async (request): Promise<CreateResult | null> => {
+    const authorization = request.headers.authorization;
+    if (!authorization) {
+        return null;
+    }
+    const token = authorization.replace(/^Bearer\s+/i, '')
+    if (!token) {
+        return null
+    }
+    const item = await ClientEntity.findOne({where: {token}});
+    if (!item) {
+        return null
+    }
+    return {
+        key: item.id,
+        context: {
+            clientId: item.id,
+            disabled: item.enabled,
+            token,
+        }
+    }
+}
+
 export class ServerService {
     private controlServer: ControlServer
 
     constructor() {
-        this.controlServer = new ControlServer()
+        this.controlServer = new ControlServer(createContext)
     }
 
     getConfig = async () => {
@@ -128,6 +160,17 @@ export class ServerService {
             default:
                 throw new Error(`不支持的监听模式：${config.mode}`);
         }
+    }
+
+    disconnect = async (request: TokenRequest) => {
+        await this.controlServer.closeItem(request.token);
+    }
+    findClientIdByToken = (token: any) => {
+        const item = this.controlServer.findByToken(token);
+        if (!item) {
+            throw new ResultApiException(NOT_CONNECTED);
+        }
+        return item.getContext().clientId;
     }
 }
 

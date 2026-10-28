@@ -30,6 +30,19 @@ export function createPagination(changeListener: () => void) {
     };
     return state;
 }
+
 export function escapeLike(value: string): string {
     return value.replace(/[\\%_]/g, '\\$&')
+}
+
+export function mapGetOrCreate<K, V>(
+    map: Map<K, V>,
+    key: K,
+    factory: (key: K) => V,
+): V {
+    //这里不能使用变量来存储创建的对象并返回,那样会使代理失效
+    if (map.get(key) === undefined) {
+        map.set(key, factory(key))
+    }
+    return map.get(key) as V;
 }

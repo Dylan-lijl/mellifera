@@ -1,5 +1,5 @@
 import {CreateClientRequest, CreateConnectionRequest, CreateMappingRequest} from "./entity";
-import {StateData} from "./stateSync";
+import {ConnectionRunData, StateData} from "./stateSync";
 import {runState, transportProtocol} from "./constant";
 
 export function createConnection(): CreateConnectionRequest {
@@ -9,6 +9,7 @@ export function createConnection(): CreateConnectionRequest {
         port: 9913,
         token: '',
         enabled: true,
+        autoUpdate: true,
         description: '',
     }
 }
@@ -36,6 +37,9 @@ export function createSyncState(): StateData {
             port: null,
             hosts: [],
             error: null,
+        },
+        connection: {
+            details: new Map<number,ConnectionRunData>(),
         }
     }
 }

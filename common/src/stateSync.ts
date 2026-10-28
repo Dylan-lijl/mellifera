@@ -14,7 +14,28 @@ export interface StateData {
         port: number | null,
         hosts: string[],
         error: string | null
+    },
+    connection: {
+        details: Map<number, ConnectionRunData>
     }
+}
+
+export interface MappingRunData {
+    id: number,
+    connectionId: number,
+    remoteId: number,
+    hosts: string,
+    port: number,
+    runningPort: number,
+}
+
+export interface ConnectionRunData {
+    running: RunStateType,
+    id: number,
+    error: {
+        message: string | null | undefined
+    },
+    connected: Map<number, MappingRunData>
 }
 
 export interface StateSnapshot<T> {

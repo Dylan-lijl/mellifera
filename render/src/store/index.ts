@@ -89,6 +89,7 @@ function createActions<D extends object>(
 
     return result as ApiActions<D>;
 }
+
 function replaceObject<T extends object>(target: T, source: T) {
     for (const key of Object.keys(target) as (keyof T)[]) {
         delete target[key];
@@ -96,6 +97,7 @@ function replaceObject<T extends object>(target: T, source: T) {
 
     Object.assign(target, source);
 }
+
 function createStateSync(options: {
     getRevision: () => number;
     setRevision: (revision: number) => void;
@@ -241,37 +243,61 @@ function createStateSync(options: {
         dispose,
     };
 }
-export function applyStatePatch(target: object, patch: StatePatch): void {
-    if (patch.path.length === 0) {
+
+export function applyStatePatch(
+    target: object,
+    patch: StatePatch
+): void {
+    const {op, path} = patch;
+
+    if (path.length === 0) {
         return;
     }
 
     let current: any = target;
 
-    for (const key of patch.path.slice(0, -1)) {
+    for (const key of path.slice(0, -1)) {
         if (current == null || typeof current !== 'object') {
             return;
         }
 
-        current = current[key];
+        current = current instanceof Map
+            ? current.get(key)
+            : current[key];
     }
 
     if (current == null || typeof current !== 'object') {
         return;
     }
 
-    const key = patch.path[patch.path.length - 1];
+    const key = path[path.length - 1];
 
-    if (patch.op === 'delete') {
+    if (current instanceof Map) {
+        if (op === 'delete') {
+            current.delete(key);
+        } else if (patch.value){
+            current.set(key, patch.value);
+        }
+
+        return;
+    }
+
+    if (op === 'delete') {
         if (Array.isArray(current) && typeof key === 'number') {
-            current.splice(key, 1);
+            if (Number.isInteger(key) && key >= 0 && key < current.length) {
+                current.splice(key, 1);
+            }
         } else {
             delete current[key];
         }
-    } else {
+
+        return;
+    }
+    if(patch.value){
         current[key] = patch.value;
     }
 }
+
 export const useStore = defineStore("main", () => {
     const m = window.$message;
     const state = reactive({

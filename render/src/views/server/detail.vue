@@ -11,7 +11,7 @@ import {
   type FormRules,
 } from 'naive-ui'
 import type {
-  ListClientResponse,
+  ListClientResponse, ListMappingResponse,
 } from '@mellifera/common/entity'
 import {useStore} from "@/store";
 import {createClient} from '@mellifera/common/factory';
@@ -44,18 +44,19 @@ const rules: FormRules = {
 }
 
 watch(
-    () => [props.data] as const,
-    ([show]) => {
-      if (!show) return
+    () => props.data,
+    (data) => {
+      if (!data) return
 
       Object.assign(form, createClient())
 
-      if (props.data) {
-        form.name = props.data.name
-        form.token = props.data.token
-        form.enabled = props.data.enabled
-        form.description = props.data.description ?? ''
-        // 编辑时不回显令牌；留空表示不修改
+      if (data) {
+        Object.keys(form).forEach((key) => {
+          const value = data[key as keyof ListClientResponse]
+          if (value !== undefined) {
+            Object.assign(form, {[key]: value})
+          }
+        })
       }
 
       formRef.value?.restoreValidation()

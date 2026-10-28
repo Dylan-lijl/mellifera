@@ -14,7 +14,12 @@ export const FindByIdDefinition = z.object({
 
 export interface FindByIdRequest extends z.infer<typeof FindByIdDefinition> {
 }
+export const TokenDefinition = z.object({
+    token: z.string().min(1),
+}).describe("token");
 
+export interface TokenRequest extends z.infer<typeof TokenDefinition> {
+}
 export const EnabledDefinition = z.object({
     id: z.int().min(1),
     enabled: z.boolean(),

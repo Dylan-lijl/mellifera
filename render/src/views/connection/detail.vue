@@ -9,7 +9,7 @@ import {
   NSwitch,
   NSpace,
   type FormInst,
-  type FormRules,
+  type FormRules, useDialog,
 } from 'naive-ui'
 import type {
   ListConnectionResponse,
@@ -20,7 +20,7 @@ import {createConnection} from '@mellifera/common/factory';
 const props = defineProps<{
   data?: ListConnectionResponse | null
 }>()
-
+const dialog = useDialog();
 const emit = defineEmits<{
   success: [ListConnectionResponse | null],
   error: [any],
@@ -59,19 +59,19 @@ const rules: FormRules = {
 }
 
 watch(
-    () => [props.data] as const,
-    ([show]) => {
-      if (!show) return
+    () => props.data,
+    (data) => {
+      if (!data) return
 
       Object.assign(form, createConnection())
 
-      if (props.data) {
-        form.name = props.data.name
-        form.host = props.data.host
-        form.port = props.data.port
-        form.enabled = props.data.enabled
-        form.description = props.data.description ?? ''
-        // 编辑时不回显令牌；留空表示不修改
+      if (data) {
+        Object.keys(form).forEach((key) => {
+          const value = data[key as keyof ListConnectionResponse]
+          if (value !== undefined) {
+            Object.assign(form, {[key]: value})
+          }
+        })
       }
 
       formRef.value?.restoreValidation()
@@ -102,23 +102,13 @@ async function handleSubmit() {
     let id: number;
     if (props.data) {
       await store.service.connection.update({
+        ...form,
         id: props.data.id,
-        name,
-        host,
-        port,
-        enabled: form.enabled,
-        description: form.description?.trim() || null,
-        token: form.token,
       }).get();
       id = props.data.id;
     } else {
       id = await store.service.connection.create({
-        name,
-        host,
-        port,
-        token: form.token || null,
-        enabled: form.enabled,
-        description: form.description?.trim() || null,
+        ...form,
       }).get();
     }
     const data = await store.service.connection.searchAndPage({pageNum: 1, pageSize: 1, id}).get();
@@ -126,6 +116,23 @@ async function handleSubmit() {
   } catch (e) {
     emit("error", e);
   }
+}
+
+function handleEnabledChange(value: boolean) {
+  if (!value) {
+    form.autoUpdate = false
+    return
+  }
+
+  dialog.warning({
+    title: '启用自动更新',
+    content: '启用后，服务端可以同步更新客户端的映射信息。请确认你信任该服务端，是否继续启用？',
+    positiveText: '确认启用',
+    negativeText: '取消',
+    onPositiveClick: () => {
+      form.autoUpdate = true
+    },
+  })
 }
 </script>
 
@@ -141,7 +148,8 @@ async function handleSubmit() {
     >
       <NFormItem path="name">
         <template #label>
-          连接名称<FormHelp content="例如：家里的服务端"/>
+          连接名称
+          <FormHelp content="例如：家里的服务端"/>
         </template>
         <NInput
             v-model:value="form.name"
@@ -152,7 +160,8 @@ async function handleSubmit() {
 
       <NFormItem label="" path="host">
         <template #label>
-          服务器地址<FormHelp content="服务器的IP或域名"/>
+          服务器地址
+          <FormHelp content="服务器的IP或域名"/>
         </template>
         <NInput
             v-model:value="form.host"
@@ -176,7 +185,8 @@ async function handleSubmit() {
       </NFormItem>
       <NFormItem path="token">
         <template #label>
-          认证令牌<FormHelp content="连接服务端的认证凭据"/>
+          认证令牌
+          <FormHelp content="连接服务端的认证凭据"/>
         </template>
         <NInput
             v-model:value="form.token"
@@ -198,13 +208,23 @@ async function handleSubmit() {
         />
       </NFormItem>
 
-      <NFormItem label="">
+      <NFormItem>
         <template #label>
-          启用连接<FormHelp content="保存后启用连接"/>
+          启用连接
+          <FormHelp content="保存后启用连接"/>
         </template>
         <NSwitch v-model:value="form.enabled"/>
       </NFormItem>
-
+      <NFormItem>
+        <template #label>
+          自动更新
+          <FormHelp content="启用后服务端映射信息更新，客户端也会同步更新，如果你信任该服务端可开启"/>
+        </template>
+        <NSwitch
+            :value="!!form.autoUpdate"
+            @update:value="handleEnabledChange"
+        />
+      </NFormItem>
       <NSpace justify="end">
         <NButton :disabled="submitting" @click="close">
           取消

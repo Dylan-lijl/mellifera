@@ -138,8 +138,8 @@ async function handleSubmit() {
     let id: number;
     if (props.data) {
       await store.service.mapping.update({
-        id: props.data.id,
-        ...form
+        ...form,
+        id: props.data.id
       }).get();
       id = props.data.id;
     } else {

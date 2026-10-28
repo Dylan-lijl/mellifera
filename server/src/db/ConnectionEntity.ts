@@ -1,4 +1,3 @@
-
 import {
     DataTypes,
     Model,
@@ -8,6 +7,7 @@ import {
 } from 'sequelize'
 
 import type {ConnectionModel} from '@mellifera/common/entity'
+
 export class ConnectionEntity extends Model<
     InferAttributes<ConnectionEntity>,
     InferCreationAttributes<ConnectionEntity>
@@ -18,11 +18,14 @@ export class ConnectionEntity extends Model<
     declare port: ConnectionModel['port']
     declare token: ConnectionModel['token']
     declare enabled: ConnectionModel['enabled']
+    declare autoUpdate: ConnectionModel['autoUpdate']
     declare description: ConnectionModel['description']
     declare createdAt: CreationOptional<ConnectionModel['createdAt']>
     declare updatedAt: CreationOptional<ConnectionModel['updatedAt']>
 }
+
 export type ConnectionField = keyof Attributes<ConnectionEntity>
+
 export function initDB(sequelize: Sequelize) {
     ConnectionEntity.init(
         {
@@ -46,12 +49,17 @@ export function initDB(sequelize: Sequelize) {
             },
             token: {
                 type: DataTypes.STRING,
-                allowNull: true,
+                allowNull: false,
             },
             enabled: {
                 type: DataTypes.BOOLEAN,
                 allowNull: false,
                 defaultValue: true,
+            },
+            autoUpdate: {
+                type: DataTypes.BOOLEAN,
+                allowNull: false,
+                defaultValue: false,
             },
             description: {
                 type: DataTypes.TEXT,

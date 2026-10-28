@@ -45,11 +45,13 @@
                 <span>{{ item.name }}</span>
 
                 <n-tag
-                    :type="connectionStatusMap.get(item.id) ? 'success' : 'default'"
+                    :type="store.syncData.connection.details.get(item.id)?.running===runState.running.value ? 'success' : 'default'"
                     size="small"
                     ghost :bordered="false"
                 >
-                  {{ connectionStatusMap.get(item.id) ? '已连接' : '未连接' }}
+                  {{
+                    store.syncData.connection.details.get(item.id)?.running === runState.running.value ? '已连接' : '未连接'
+                  }}
                 </n-tag>
               </div>
 
@@ -61,9 +63,11 @@
 
           <div class="connection-actions">
             <n-button
-                v-if="connectionStatusMap.get(item.id)"
+                v-if="store.syncData.connection.details.get(item.id)?.running===runState.running.value"
                 size="small"
+                type="error"
                 secondary
+                :loading="store.apiState.service.connection.disconnect.requesting.has(item.id)"
                 @click="handleDisconnect(item)"
                 ghost
             >
@@ -74,41 +78,56 @@
                 v-else
                 size="small"
                 type="primary"
+                :loading="store.apiState.service.connection.connect.requesting.has(item.id)"
                 @click="handleConnect(item)"
                 ghost
             >
               连接
             </n-button>
-            <n-popover trigger="hover" placement="bottom-end">
-              <template #trigger>
-                <n-button quaternary circle size="small">
-                  <template #icon>
-                    <n-icon>
-                      <EllipsisHorizontal/>
-                    </n-icon>
-                  </template>
-                </n-button>
+            <n-button type="primary" size="small" @click="()=>handleEdit(item)" ghost :bordered="false"
+                      :disabled="store.syncData.connection.details.get(item.id)?.running===runState.running.value">
+              <template #icon>
+                <EditFilled/>
               </template>
-              <div>
-                <div>
-                  <n-button type="primary" size="small" @click="()=>handleEdit(item)" ghost :bordered="false">
-                    <template #icon>
-                      <EditFilled/>
-                    </template>
-                    编辑
-                  </n-button>
-                </div>
-                <n-divider style="margin: 4px 0"/>
-                <div>
-                  <n-button type="error" size="small" @click="()=>handleDelete(item)" ghost :bordered="false">
-                    <template #icon>
-                      <DeleteFilled/>
-                    </template>
-                    删除
-                  </n-button>
-                </div>
-              </div>
-            </n-popover>
+              编辑
+            </n-button>
+            <n-button type="error" size="small" @click="()=>handleDelete(item)" ghost :bordered="false"
+                      :disabled="store.syncData.connection.details.get(item.id)?.running===runState.running.value">
+              <template #icon>
+                <DeleteFilled/>
+              </template>
+              删除
+            </n-button>
+            <!--            <n-popover trigger="hover" placement="bottom-end">
+                          <template #trigger>
+                            <n-button quaternary circle size="small">
+                              <template #icon>
+                                <n-icon>
+                                  <EllipsisHorizontal/>
+                                </n-icon>
+                              </template>
+                            </n-button>
+                          </template>
+                          <div>
+                            <div>
+                              <n-button type="primary" size="small" @click="()=>handleEdit(item)" ghost :bordered="false">
+                                <template #icon>
+                                  <EditFilled/>
+                                </template>
+                                编辑
+                              </n-button>
+                            </div>
+                            <n-divider style="margin: 4px 0"/>
+                            <div>
+                              <n-button type="error" size="small" @click="()=>handleDelete(item)" ghost :bordered="false">
+                                <template #icon>
+                                  <DeleteFilled/>
+                                </template>
+                                删除
+                              </n-button>
+                            </div>
+                          </div>
+                        </n-popover>-->
           </div>
         </div>
 
@@ -118,14 +137,15 @@
           <div class="mapping-title">
             <span>端口映射</span>
             <n-text depth="3" class="mapping-count">
-              {{ mappingMap.get(item.id)?.length ?? 0 }}
+              <span>{{ store.syncData.connection.details.get(item.id)?.connected?.size ?? 0 }}</span>/
+              <span>{{ mappingMap.get(item.id)?.length ?? 0 }}</span>
             </n-text>
           </div>
 
           <n-button
               size="small"
               secondary
-              :disabled="!connectionStatusMap.get(item.id)"
+              :disabled="store.syncData.connection.details.get(item.id)?.running!==runState.running.value"
               @click="handleAddMapping(item)"
           >
             <template #icon>
@@ -137,7 +157,7 @@
           </n-button>
         </div>
 
-        <n-data-table
+        <SupperTable
             v-if="!!(mappingMap.get(item.id)?.length)"
             :columns="mappingColumns"
             :data="mappingMap.get(item.id)!"
@@ -145,7 +165,106 @@
             :bordered="false"
             :single-line="false"
             size="small"
-        />
+        >
+          <template #render="{row,column}">
+            <template v-if="column.key==='enabled'">
+              <NPopconfirm @positive-click="()=>handlePositiveClick(row)">
+                <template #trigger>
+                  <NButton :type="row.enabled?'success':'error'" secondary>{{ row.enabled ? '已启用' : '已禁用' }}
+                  </NButton>
+                </template>
+                <span v-show="row.enabled">
+                  禁用会断开正在运行的连接,同时不响应服务端的代理请求,确定禁用吗
+                </span>
+                <span v-show="!row.enabled">
+                  开启后响应服务端代理请求,确定开启吗
+                </span>
+              </NPopconfirm>
+            </template>
+            <template v-else-if="column.key==='autoUpdate'">
+              <NPopconfirm @positive-click="()=>handlePositiveClick(row,false)">
+                <template #trigger>
+                  <NButton :type="row.autoUpdate?'success':'error'" secondary>{{ row.autoUpdate ? '已启用' : '已禁用' }}
+                  </NButton>
+                </template>
+                <span v-show="row.autoUpdate">
+                  禁用后,服务端修改映射连接信息后,会自动禁用,需要手动开启,确定禁用吗
+                </span>
+                <span v-show="!row.autoUpdate">
+                  开启后,服务端修改映射连接信息后,会自动更新连接信息,确定开启吗(非常信任该服务器)
+                </span>
+              </NPopconfirm>
+            </template>
+            <template v-else-if="column.key==='remoteRemove'">
+              <NTag :type="row.remoteRemove?'error':'info'">{{ row.remoteRemove ? '是' : '否' }}</NTag>
+            </template>
+            <template v-else-if="column.key==='name'">
+              {{ row.remoteConfig?.name ?? '' }}
+            </template>
+            <template v-else-if="column.key==='protocol'">
+              <div>
+                {{ transportProtocolOptions.find(i => i.value === row.remoteConfig?.protocol)?.label ?? '未知' }}
+              </div>
+              <div v-if="row.appliedConfig?.protocol!==row.remoteConfig?.protocol" class="old-mapping-value">
+                {{ transportProtocolOptions.find(i => i.value === row.remoteConfig?.protocol)?.label ?? '未知' }}
+              </div>
+            </template>
+            <template v-else-if="column.key==='targetHost'">
+              <div>
+                {{ row.remoteConfig?.targetHost }}
+              </div>
+              <div v-if="row.appliedConfig?.targetHost!==row.remoteConfig?.targetHost" class="old-mapping-value">
+                {{ row.remoteConfig?.targetHost }}
+              </div>
+            </template>
+            <template v-else-if="column.key==='targetPort'">
+              <div>
+                {{ row.remoteConfig?.targetPort }}
+              </div>
+              <div v-if="row.appliedConfig?.targetPort!==row.remoteConfig?.targetPort" class="old-mapping-value">
+                {{ row.remoteConfig?.targetPort }}
+              </div>
+            </template>
+            <template v-else-if="column.key==='listenPort'">
+              <div>
+                {{ row.remoteConfig?.listenPort }}<span
+                  v-if="row.remoteConfig?.listenPort===0&&row.enabled&&store.syncData.connection.details?.get(item.id)?.connected?.get(row.id)">
+                ({{ store.syncData.connection.details?.get(item.id)?.connected?.get(row.id)?.runningPort }})
+              </span>
+              </div>
+              <div v-if="row.appliedConfig?.listenPort!==row.remoteConfig?.listenPort" class="old-mapping-value">
+                {{ row.remoteConfig?.listenPort }}
+              </div>
+            </template>
+            <template v-else-if="column.key==='disabledPorts'&&row.remoteConfig?.listenPort===0">
+              <div>
+                <NTag v-for="line in row.remoteConfig?.disabledPorts?.split(',')?.filter(i=>i&&i!=='')">{{line}}</NTag>
+              </div>
+              <!--如果里面顺序不一样也会匹配失败,暂时不解决,要么拆分成数组逐个对比,要么添加的时候排序完并插入-->
+              <div v-if="row.remoteConfig?.disabledPorts!==row.appliedConfig?.disabledPorts" class="old-mapping-value">
+                <NTag v-for="line in row.appliedConfig?.disabledPorts?.split(',')?.filter(i=>i&&i!=='')">{{line}}</NTag>
+              </div>
+            </template>
+            <template v-else-if="column.key==='description'">
+              {{ row.remoteConfig?.description ?? '' }}
+            </template>
+            <template v-else-if="column.key==='createdAt'">
+              {{ formatDateTime(row.remoteConfig?.createdAt)}}
+            </template>
+<!--            修改时间可以取配置跟远程配置最大时间-->
+            <template v-else-if="column.key==='updatedAt'">
+              {{ formatDateTime(row.remoteConfig?.updatedAt)}}
+            </template>
+            <template v-else-if="column.key==='actions'">
+              <NButton secondary @click="()=>handleEditMapping(row)">编辑</NButton>
+              <NButton secondary @click="()=>handleDeleteMapping(row)">删除</NButton>
+              <NButton secondary>断开</NButton>
+            </template>
+            <template v-else>
+              {{(row as any)[column.key]}}
+            </template>
+          </template>
+        </SupperTable>
 
         <n-empty
             v-else
@@ -180,22 +299,19 @@
 </template>
 
 <script setup lang="ts">
-import {h, ref} from 'vue'
+import {ref} from 'vue'
 import {
   NButton,
   NIcon,
   NTag,
   NText,
   NDivider,
-  NDataTable,
   NEmpty,
   NCard,
-  useMessage,
-  type DataTableColumns, useDialog,
+  useMessage, useDialog,
 } from 'naive-ui'
 import {
   AddOutline,
-  EllipsisHorizontal,
   Refresh,
 } from '@vicons/ionicons5'
 import {EditFilled, DeleteFilled} from '@vicons/antd'
@@ -203,27 +319,13 @@ import {createPagination} from "@mellifera/common/util";
 import type {
   SearchRequest,
   ListConnectionResponse,
-  InfoConnectionResponse
+  InfoConnectionResponse, ListConnectionMappingResponse, UpdateConnectionMappingRequest
 } from "@mellifera/common/entity";
 import {useStore} from "@/store";
 import Detail from "./detail.vue"
-import {contentContainer} from "@mellifera/common/constant";
-
-interface PortMapping {
-  parentId: number;
-  id: number,
-  name: string
-  protocol: 'TCP' | 'UDP'
-  targetAddress: string
-  targetPort: number
-  remotePort?: number
-  status: 'running' | 'stopped'
-}
-
-interface ConnectionStatus {
-  id: number,
-  connected: boolean
-}
+import {contentContainer, runState, transportProtocolOptions} from "@mellifera/common/constant";
+import type {SuperTableColumn} from "@/types";
+import {formatDateTime, showError} from "@/util";
 
 const dialog = useDialog()
 const message = useMessage()
@@ -245,30 +347,7 @@ const connection = ref<{
     keyword: undefined,
   },
 });
-const mappings = ref<PortMapping[]>([]);
-const mappingMap = computed(() => {
-  const map = new Map<number, PortMapping[]>();
-
-  for (const item of mappings.value) {
-    const list = map.get(item.parentId);
-
-    if (list) {
-      list.push(item);
-    } else {
-      map.set(item.parentId, [item]);
-    }
-  }
-
-  return map;
-});
-const connectionStatus = ref<ConnectionStatus[]>();
-const connectionStatusMap = computed(() => {
-  const map = new Map<number, boolean>();
-  connectionStatus.value?.forEach((item) => {
-    map.set(item.id, item.connected)
-  });
-  return map;
-})
+const mappingMap = ref(new Map<number, ListConnectionMappingResponse[]>());
 
 async function reloadData() {
   if (store.apiState.service.connection.searchAndPage.requesting.size) {
@@ -278,84 +357,94 @@ async function reloadData() {
   connection.value.data = data.list;
 }
 
-const mappingColumns: DataTableColumns<PortMapping> = [
+const mappingColumns: SuperTableColumn<ListConnectionMappingResponse> = [
+  {
+    title: '主键',
+    key: 'id',
+    minWidth: 80,
+    hidden: true,
+  }, {
+    title: '远程主键',
+    key: 'remoteId',
+    minWidth: 80,
+    hidden: true,
+  }, {
+    title: '连接主键',
+    key: 'connectionId',
+    minWidth: 80,
+    hidden: true,
+  },
+  {
+    title: '启用',
+    key: 'enabled',
+    minWidth: 70,
+    resizable: true,
+  }, {
+    title: '自动更新',
+    key: 'autoUpdate',
+    minWidth: 70,
+    resizable: true,
+  }, {
+    title: '已删除',
+    key: 'remoteRemove',
+    minWidth: 70,
+    resizable: true,
+  },
+  //=========映射字段============
   {
     title: '名称',
     key: 'name',
-    minWidth: 120,
-  },
-  {
-    title: '协议',
+    minWidth: 150,
+    resizable: true,
+  }, {
+    title: '传输协议',
     key: 'protocol',
-    width: 90,
-    render: (row) =>
-        h(
-            NTag,
-            {size: 'small', bordered: false},
-            {default: () => row.protocol},
-        ),
+    minWidth: 90,
+    resizable: true,
   },
   {
-    title: '目标地址',
-    key: 'target',
-    minWidth: 190,
-    render: (row) => `${row.targetAddress}:${row.targetPort}`,
+    title: '映射端口',
+    key: 'listenPort',
+    minWidth: 90,
+    resizable: true,
+  }, {
+    title: '目标主机',
+    key: 'targetHost',
+    minWidth: 170,
+    resizable: true,
+  }, {
+    title: '目标端口',
+    key: 'targetPort',
+    minWidth: 90,
+    resizable: true,
   },
   {
-    title: '公网入口',
-    key: 'remote',
-    minWidth: 210,
-    render: (row) =>
-        row.remotePort
-            ? `${row.remotePort}`
-            : h(NText, {depth: 3}, {default: () => '待分配'}),
+    title: '禁用端口',
+    key: 'disabledPorts',
+    minWidth: 110,
+    resizable: true,
   },
   {
-    title: '状态',
-    key: 'status',
-    width: 110,
-    render: (row) =>
-        h(
-            NTag,
-            {
-              type: row.status === 'running' ? 'success' : 'default',
-              size: 'small',
-              bordered: false,
-            },
-            {
-              default: () =>
-                  row.status === 'running' ? '运行中' : '未启动',
-            },
-        ),
+    title: '描述',
+    key: 'description',
+    width: 150,
+    resizable: true,
+  }, {
+    title: '创建时间',
+    key: 'createdAt',
+    width: 180,
+    resizable: true,
+  }, {
+    title: '修改时间',
+    key: 'updatedAt',
+    width: 180,
+    resizable: true,
   },
   {
     title: '操作',
     key: 'actions',
     width: 140,
     align: 'right',
-    render: (row) =>
-        h('div', {class: 'mapping-actions'}, [
-          h(
-              NButton,
-              {
-                size: 'tiny',
-                quaternary: true,
-                type: 'primary',
-                onClick: () => handleEditMapping(row),
-              },
-              {default: () => '编辑'},
-          ),
-          h(
-              NButton,
-              {
-                size: 'tiny',
-                quaternary: true,
-                type: 'error',
-                onClick: () => handleDeleteMapping(row),
-              },
-              {default: () => '删除'},
-          ),
-        ]),
   },
 ]
 
@@ -364,12 +453,18 @@ function handleAdd() {
   infoDesc.value.title = "添加连接";
 }
 
-function handleConnect(item: ListConnectionResponse) {
-  message.info(`连接服务端：${item.name}`)
+async function handleConnect(item: ListConnectionResponse) {
+  if (store.apiState.service.connection.connect.requesting.has(item.id)) {
+    return;
+  }
+  await store.service.connection.connect({id: item.id}).get();
 }
 
-function handleDisconnect(item: ListConnectionResponse) {
-  message.info(`断开服务端：${item.name}`)
+async function handleDisconnect(item: ListConnectionResponse) {
+  if (store.apiState.service.connection.disconnect.requesting.has(item.id)) {
+    return;
+  }
+  await store.service.connection.disconnect({id: item.id}).get();
 }
 
 function handleEdit(item: ListConnectionResponse) {
@@ -406,12 +501,31 @@ function handleAddMapping(item: ListConnectionResponse) {
   message.info(`为 ${item.name} 添加映射`)
 }
 
-function handleEditMapping(row: PortMapping) {
-  message.info(`编辑映射：${row.name}`)
+async function handlePositiveClick(row: ListConnectionMappingResponse, isEnabled = true) {
+  //修改enabled状态
+  const p: UpdateConnectionMappingRequest = {id: row.id}
+  if (isEnabled) {
+    p.enabled = !row.enabled;
+  } else {
+    p.autoUpdate = !row.autoUpdate;
+  }
+  const r = await store.service.connection.mapping.update(p).errorMessage((r) => showError(message, r)).get();
+  if (!r) {
+    return;
+  }
+  if (isEnabled) {
+    row.enabled = p.enabled;
+  } else {
+    row.autoUpdate = p.autoUpdate;
+  }
 }
 
-function handleDeleteMapping(row: PortMapping) {
-  message.info(`删除映射：${row.name}`)
+function handleEditMapping(row: ListConnectionMappingResponse) {
+  message.info(`编辑映射：${row?.appliedConfig?.name ?? row?.remoteConfig?.name ?? row.id}`)
+}
+
+function handleDeleteMapping(row: ListConnectionMappingResponse) {
+  message.info(`删除映射：${row?.appliedConfig?.name ?? row?.remoteConfig?.name ?? row.id}`)
 }
 
 function infoSuccess(item: InfoConnectionResponse | null) {
@@ -569,5 +683,10 @@ onMounted(() => {
   > * {
     margin-inline-end: 10px;
   }
+}
+
+.old-mapping-value {
+  font-size: 14px;
+  color: #a4a4a4;
 }
 </style>

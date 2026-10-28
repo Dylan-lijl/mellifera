@@ -6,13 +6,16 @@ import {
 import {type AppInfo, NetworkIpInfo} from "../types";
 import type {ReloadType} from "../constant";
 import {
-    CreateClientRequest,
+    ConnectionMappingModel,
+    CreateClientRequest, CreateConnectionMappingRequest,
     CreateConnectionRequest, CreateMappingRequest, DeleteByIdRequest, EnabledRequest,
     FindByIdRequest, InfoClientResponse,
     InfoConnectionResponse, InfoMappingResponse, type ListClientRequest, ListClientResponse,
+    ListConnectionMappingResponse,
     ListConnectionResponse, ListMappingRequest,
     ListMappingResponse,
-    SearchAndPageRequest, ServerConfig, UpdateClientRequest, UpdateConnectionRequest, UpdateMappingRequest
+    SearchAndPageRequest, ServerConfig, UpdateClientRequest,
+    UpdateConnectionMappingRequest, UpdateConnectionRequest, UpdateMappingRequest
 } from "../entity";
 import {PageData} from "../Result";
 
@@ -36,6 +39,13 @@ export const SystemApiDefinition = {
 } as const
 const storeWrapper: WrapperName[] = ["resultWrapper", "logWrapper"];
 const commonWrapper: WrapperName[] = ["resultWrapper", "logWrapper"];
+export const ConnectionMappingApiDefinition = {
+    load: method<(request: FindByIdRequest) => Promise<ListConnectionMappingResponse[]>>({wrappers: commonWrapper}),
+    add: method<(request: CreateConnectionMappingRequest) => Promise<number>>({wrappers: commonWrapper}),
+    update: method<(request: UpdateConnectionMappingRequest) => Promise<number>>({wrappers: commonWrapper}),
+    disconnect: method<(request: FindByIdRequest) => Promise<void>>({wrappers: commonWrapper}),
+    remove: method<(request: DeleteByIdRequest) => Promise<boolean>>({wrappers: commonWrapper}),
+}
 export const ConnectionApiDefinition = {
     searchAndPage: method<(request: SearchAndPageRequest) => Promise<PageData<ListConnectionResponse>>>({wrappers: commonWrapper}),
     getById: method<(request: FindByIdRequest) => Promise<InfoConnectionResponse>>({wrappers: commonWrapper}),
@@ -52,6 +62,14 @@ export const ConnectionApiDefinition = {
         wrappers: commonWrapper,
         loading: (request) => request.id
     }),
+    connect: method<(request: FindByIdRequest) => Promise<void>>({
+        wrappers: commonWrapper,
+        loading: (request) => request.id
+    }), disconnect: method<(request: FindByIdRequest) => Promise<void>>({
+        wrappers: commonWrapper,
+        loading: (request) => request.id
+    }),
+    mapping: ConnectionMappingApiDefinition
 }
 export const ClientApiDefinition = {
     searchAndPage: method<(request: ListClientRequest) => Promise<PageData<ListClientResponse>>>({wrappers: commonWrapper}),
