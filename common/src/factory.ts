@@ -37,9 +37,10 @@ export function createSyncState(): StateData {
             port: null,
             hosts: [],
             error: null,
+            connected:[]
         },
         connection: {
-            details: new Map<number,ConnectionRunData>(),
+            details: new Map<number, ConnectionRunData>(),
         }
     }
 }
@@ -52,6 +53,9 @@ export function createMapping(): CreateMappingRequest {
         enabled: true,
         protocol: transportProtocol.tcp.value,
         targetHost: "127.0.0.1",
-        targetPort: 80
+        targetPort: 80,
+        disabledPorts: '',
+        description: '',
+        other: '',
     }
 }

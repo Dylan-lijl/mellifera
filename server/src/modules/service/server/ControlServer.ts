@@ -5,6 +5,8 @@ import WebSocket, {WebSocketServer,} from 'ws'
 import {RpcRouter} from "@/rpc/router/RpcRouter";
 import {WebSocketTransport} from "@/rpc/transport/WebSocketTransport";
 import type {Duplex} from "node:stream";
+import {registerLocalControllers} from "@/rpc/client/RpcClientFactory";
+import StateSyncManager from "@/StateSyncManager";
 
 /**
  * create 方法的返回值。
@@ -285,6 +287,10 @@ export class ControlServer {
             socket.once('close', () => {
                 if (this.clients.get(key) === peer) {
                     this.clients.delete(key)
+                    const clientId = peer?.getContext()?.clientId;
+                    if (clientId) {
+                        StateSyncManager.getState().server.connected = StateSyncManager.getState().server.connected.filter((item:number) => item !== clientId)
+                    }
                 }
             })
 
@@ -312,6 +318,7 @@ export class ControlServer {
         context: RpcServerContext,
     ): Promise<RpcPeer<RpcServerContext>> | RpcPeer<RpcServerContext> {
         const router = new RpcRouter<RpcServerContext>()
+        registerLocalControllers("server", router)
         return new RpcPeer(new WebSocketTransport(socket), router, {context});
     }
 
@@ -378,7 +385,10 @@ export class ControlServer {
         }
 
         this.stopping = true
-        this.stopPromise = this.stopInternal()
+        this.stopPromise = this.stopInternal().finally(() => {
+            this.stopPromise = undefined // 关键：停止结束后必须重置！
+            this.stopping = false
+        })
 
         return this.stopPromise
     }

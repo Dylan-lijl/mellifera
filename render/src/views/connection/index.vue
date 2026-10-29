@@ -141,25 +141,25 @@
               <span>{{ mappingMap.get(item.id)?.length ?? 0 }}</span>
             </n-text>
           </div>
-
-          <n-button
-              size="small"
-              secondary
-              :disabled="store.syncData.connection.details.get(item.id)?.running!==runState.running.value"
-              @click="handleAddMapping(item)"
-          >
-            <template #icon>
-              <n-icon>
-                <AddOutline/>
-              </n-icon>
-            </template>
-            添加映射
-          </n-button>
+          <div style="display: flex;align-items: center;">
+            <ColumnVisibility :columns="mappingColumns"/>
+            <n-button
+                secondary
+                :disabled="store.syncData.connection.details.get(item.id)?.running!==runState.running.value"
+                @click="handleAddMapping(item)"
+            >
+              <template #icon>
+                <n-icon>
+                  <AddOutline/>
+                </n-icon>
+              </template>
+              添加映射
+            </n-button>
+          </div>
         </div>
-
         <SupperTable
             v-if="!!(mappingMap.get(item.id)?.length)"
-            :columns="mappingColumns"
+            :columns="mappingColumns.filter((i:SuperTableColumn<ListConnectionMappingResponse>)=>!i.hidden)"
             :data="mappingMap.get(item.id)!"
             :row-key="(row) => row.id"
             :bordered="false"
@@ -196,7 +196,7 @@
               </NPopconfirm>
             </template>
             <template v-else-if="column.key==='remoteRemove'">
-              <NTag :type="row.remoteRemove?'error':'info'">{{ row.remoteRemove ? '是' : '否' }}</NTag>
+              <NTag :type="row.remoteRemove?'error':'default'">{{ row.remoteRemove ? '是' : '否' }}</NTag>
             </template>
             <template v-else-if="column.key==='name'">
               {{ row.remoteConfig?.name ?? '' }}
@@ -238,30 +238,41 @@
             </template>
             <template v-else-if="column.key==='disabledPorts'&&row.remoteConfig?.listenPort===0">
               <div>
-                <NTag v-for="line in row.remoteConfig?.disabledPorts?.split(',')?.filter(i=>i&&i!=='')">{{line}}</NTag>
+                {{ row.remoteConfig?.disabledPorts }}
               </div>
               <!--如果里面顺序不一样也会匹配失败,暂时不解决,要么拆分成数组逐个对比,要么添加的时候排序完并插入-->
               <div v-if="row.remoteConfig?.disabledPorts!==row.appliedConfig?.disabledPorts" class="old-mapping-value">
-                <NTag v-for="line in row.appliedConfig?.disabledPorts?.split(',')?.filter(i=>i&&i!=='')">{{line}}</NTag>
+                {{ row.appliedConfig?.disabledPorts }}
               </div>
             </template>
             <template v-else-if="column.key==='description'">
               {{ row.remoteConfig?.description ?? '' }}
             </template>
             <template v-else-if="column.key==='createdAt'">
-              {{ formatDateTime(row.remoteConfig?.createdAt)}}
+              {{ formatDateTime(row.remoteConfig?.createdAt) }}
             </template>
-<!--            修改时间可以取配置跟远程配置最大时间-->
+            <!--            修改时间可以取配置跟远程配置最大时间-->
             <template v-else-if="column.key==='updatedAt'">
-              {{ formatDateTime(row.remoteConfig?.updatedAt)}}
+              {{ formatDateTime(row.remoteConfig?.updatedAt) }}
             </template>
             <template v-else-if="column.key==='actions'">
-              <NButton secondary @click="()=>handleEditMapping(row)">编辑</NButton>
-              <NButton secondary @click="()=>handleDeleteMapping(row)">删除</NButton>
-              <NButton secondary>断开</NButton>
+              <NButton quaternary @click="()=>handleEditMapping(row)" type="info"
+                       :disabled="store.syncData.connection.details.get(item.id)?.running!==runState.running.value">编辑
+              </NButton>
+              <NPopconfirm @positive-click="()=>handleDeleteMapping(row)">
+                <template #trigger>
+                  <NButton quaternary type="error"
+                           :disabled="store.syncData.connection.details.get(item.id)?.running!==runState.running.value">删除
+                  </NButton>
+                </template>
+                确认删除吗?
+              </NPopconfirm>
+              <NButton quaternary type="warning"
+                       v-if="store.syncData.connection.details.get(item.id)?.connected?.get(row.id)">断开
+              </NButton>
             </template>
             <template v-else>
-              {{(row as any)[column.key]}}
+              {{ (row as any)[column.key] }}
             </template>
           </template>
         </SupperTable>
@@ -292,6 +303,23 @@
             :data="infoDesc.data"
             @success="infoSuccess"
             @close="()=>infoDesc.show = false"
+        />
+      </NDrawerContent>
+    </NDrawer>
+    <NDrawer
+        v-model:show="mappingInfoDesc.show"
+        placement="right"
+        :width="'50%'"
+        :to="'.'+contentContainer"
+        :auto-focus="false"
+    >
+      <NDrawerContent :title="mappingInfoDesc.title" closable>
+        <MappingDetail
+            :from-client="true"
+            :data="mappingInfoDesc.data"
+            :clientId="mappingInfoDesc.clientId"
+            @success="infoMappingSuccess"
+            @close="()=>mappingInfoDesc.show = false"
         />
       </NDrawerContent>
     </NDrawer>
@@ -326,6 +354,7 @@ import Detail from "./detail.vue"
 import {contentContainer, runState, transportProtocolOptions} from "@mellifera/common/constant";
 import type {SuperTableColumn} from "@/types";
 import {formatDateTime, showError} from "@/util";
+import MappingDetail from "@/views/server/mappingDetail.vue";
 
 const dialog = useDialog()
 const message = useMessage()
@@ -335,7 +364,12 @@ const infoDesc = ref({
   show: false,
   data: null as ListConnectionResponse | null,
 });
-
+const mappingInfoDesc = ref({
+  title: "",
+  show: false,
+  data: null as ListConnectionMappingResponse | null,
+  clientId: 0,
+});
 const connection = ref<{
   data: ListConnectionResponse[];
   page: ReturnType<typeof createPagination>;
@@ -354,10 +388,18 @@ async function reloadData() {
     return;
   }
   const data = await store.service.connection.searchAndPage(connection.value.page.get(connection.value.param)).get();
-  connection.value.data = data.list;
+  (connection.value.data = data.list).forEach(item => reloadMappingData(item.id))
 }
 
-const mappingColumns: SuperTableColumn<ListConnectionMappingResponse> = [
+async function reloadMappingData(id: number) {
+  if (store.apiState.service.connection.mapping.load.requesting.has(id)) {
+    return;
+  }
+  const r = await store.service.connection.mapping.load({id}).errorMessage(r => showError(message, r)).get()
+  mappingMap.value.set(id, r);
+}
+
+const mappingColumns: SuperTableColumn<ListConnectionMappingResponse> = reactive([
   {
     title: '主键',
     key: 'id',
@@ -445,8 +487,9 @@ const mappingColumns: SuperTableColumn<ListConnectionMappingResponse> = [
     key: 'actions',
     width: 140,
     align: 'right',
+    fixed: 'right',
   },
-]
+]);
 
 function handleAdd() {
   infoDesc.value.show = true;
@@ -498,7 +541,10 @@ function handleDelete(item: ListConnectionResponse) {
 }
 
 function handleAddMapping(item: ListConnectionResponse) {
-  message.info(`为 ${item.name} 添加映射`)
+  mappingInfoDesc.value.show = true;
+  mappingInfoDesc.value.title = `为 ${item.name} 添加映射`;
+  mappingInfoDesc.value.data = null;
+  mappingInfoDesc.value.clientId = item.id;
 }
 
 async function handlePositiveClick(row: ListConnectionMappingResponse, isEnabled = true) {
@@ -521,11 +567,34 @@ async function handlePositiveClick(row: ListConnectionMappingResponse, isEnabled
 }
 
 function handleEditMapping(row: ListConnectionMappingResponse) {
-  message.info(`编辑映射：${row?.appliedConfig?.name ?? row?.remoteConfig?.name ?? row.id}`)
+  mappingInfoDesc.value.show = true;
+  mappingInfoDesc.value.title = `${row?.appliedConfig?.name ?? row?.remoteConfig?.name ?? row.id}`;
+  mappingInfoDesc.value.data = row;
+  mappingInfoDesc.value.clientId = row.connectionId;
 }
 
 function handleDeleteMapping(row: ListConnectionMappingResponse) {
   message.info(`删除映射：${row?.appliedConfig?.name ?? row?.remoteConfig?.name ?? row.id}`)
+}
+
+function infoMappingSuccess(info: ListConnectionMappingResponse | null) {
+  if (!info || !info.connectionId) {
+    return;
+  }
+  const connectionId = info.connectionId
+  // 1. 获取当前 connectionId 下的列表，没有则初始化为空数组
+  const list = mappingMap.value.get(connectionId) || []
+  // 2. 查找数组中是否已经存在该项（假设每条数据有唯一的 id）
+  const index = list.findIndex(item => item.id === info.id)
+  if (index !== -1) {
+    // 3a. 存在则替换（更新）
+    list[index] = info
+  } else {
+    // 3b. 不存在则追加
+    list.push(info)
+  }
+  // 4. 将更新后的数组重新 set 回 Map 中，确保 Vue 3 能够触发响应式更新
+  mappingMap.value.set(connectionId, [...list])
 }
 
 function infoSuccess(item: InfoConnectionResponse | null) {

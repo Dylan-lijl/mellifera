@@ -26,7 +26,11 @@ import type {RpcClientContext} from "@/rpc/type";
 import {WebSocketTransport} from "@/rpc/transport/WebSocketTransport";
 import {RpcRouter} from "@/rpc/router/RpcRouter";
 import {WebSocket} from "ws";
-import {createRpcClient, type RpcProxyFor} from "@/rpc/client/RpcClientFactory";
+import {
+    createRemoteControllerProxy,
+    registerLocalControllers,
+    type RpcProxyFor
+} from "@/rpc/client/RpcClientFactory";
 import {NOT_CONNECTED} from "@mellifera/common/ResultCode";
 import type {MappingEntity} from "@/db/MappingEntity";
 import {ConnectionMappingEntity} from "@/db/ConnectionMappingEntity";
@@ -212,10 +216,11 @@ export class ConnectionService {
         )
         const rpcContext: RpcClientContext = {id: id, token: connection.token};
         const router = new RpcRouter<RpcClientContext>()
+        registerLocalControllers("client", router)
         const client = new RpcPeer(transport, router, {context: rpcContext})
         try {
             await client.getTransPort().connect()
-            const rpc = createRpcClient("client", router, client);
+            const rpc = createRemoteControllerProxy("client", client);
             client.getTransPort().onClose(() => {
                 if (context.client === client) {
                     context.client = undefined
@@ -292,10 +297,10 @@ export class ConnectionService {
         load: async (request: FindByIdRequest) => {
             const {id} = FindByIdDefinition.parse(request);
             // 1. 先查询本地数据
-            const loadLocal = () => ConnectionMappingEntity.findAll({
+            const loadLocal =async () => (await ConnectionMappingEntity.findAll({
                 where: {connectionId: id},
                 order: [['updatedAt', 'DESC']],
-            });
+            })).map(item=>item.toJSON<ConnectionMappingEntity>());
             const localEntities = await loadLocal();
             // 2. 检查连接状态
             const context = this.getConnectedContext(id, false);
@@ -384,7 +389,8 @@ export class ConnectionService {
                 });
             }
             // 6. 返回同步后的本地数据
-            return await loadLocal() as ListConnectionMappingResponse[];
+            const r = await loadLocal();
+            return r as ListConnectionMappingResponse[];
         },
         add: async (request: CreateConnectionMappingRequest) => {
             const {config, connectionId, enabled, autoUpdate} = CreateConnectionMappingDefinition.parse(request);
@@ -406,7 +412,12 @@ export class ConnectionService {
             autoUpdate: boolean,
             remoteId: number
         }) => {
-            const item = await ConnectionMappingEntity.create(data)
+            const {config, ...otherData} = data;
+            const item = await ConnectionMappingEntity.create({
+                ...otherData,
+                appliedConfig: config,
+                remoteConfig: config
+            });
             return item.id as number;
         },
         update: async (request: UpdateConnectionMappingRequest) => {

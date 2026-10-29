@@ -13,7 +13,8 @@ export interface StateData {
         running: RunStateType,
         port: number | null,
         hosts: string[],
-        error: string | null
+        error: string | null,
+        connected:number[],
     },
     connection: {
         details: Map<number, ConnectionRunData>

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends boolean = true">
 import {computed, reactive, ref, watch} from 'vue'
 import {
   NButton,
@@ -11,20 +11,22 @@ import {
   type FormRules, useMessage,
 } from 'naive-ui'
 import type {
-  ListMappingResponse,
+  ListConnectionMappingResponse,
+  ListMappingResponse, MappingModel,
 } from '@mellifera/common/entity'
 import {useStore} from "@/store";
 import {createMapping} from '@mellifera/common/factory';
 import {transportProtocolOptions} from "@mellifera/common/constant";
 
 const props = defineProps<{
-  data?: ListMappingResponse | null,
-  clientId: number | null,
+  fromClient?: T
+  data: T extends false ? ListMappingResponse | null : ListConnectionMappingResponse | null
+  clientId: T extends false ? number | null : number
 }>()
 
 const emit = defineEmits<{
-  success: [ListMappingResponse | null],
-  error: [any],
+  success: [payload: T extends false ? ListMappingResponse | null : ListConnectionMappingResponse | null]
+  error: [any]
   close: []
 }>()
 const message = useMessage();
@@ -101,7 +103,9 @@ watch(
 
       if (data) {
         Object.keys(form).forEach((key) => {
-          const value = data[key as keyof ListMappingResponse]
+          const value = props.fromClient === true
+              ? (props.data as ListConnectionMappingResponse)?.remoteConfig?.[key as keyof MappingModel]
+              : (props.data as ListMappingResponse)?.[key as keyof ListMappingResponse];
           if (value !== undefined) {
             Object.assign(form, {[key]: value})
           }
@@ -137,20 +141,39 @@ async function handleSubmit() {
   try {
     let id: number;
     if (props.data) {
-      await store.service.mapping.update({
-        ...form,
-        id: props.data.id
-      }).get();
+      if (props.fromClient) {
+        await store.service.connection.mapping.update({
+          config: {...form, id: (props.data as ListConnectionMappingResponse).remoteId} as any,
+          id: props.data.id
+        }).get();
+      } else {
+        await store.service.mapping.update({
+          ...form,
+          id: props.data.id
+        }).get();
+      }
       id = props.data.id;
     } else {
-      if (!form.clientId) {
-        message.error("缺少客户id")
-        return
+      if (props.fromClient) {
+        id = await store.service.connection.mapping.add({config: {...form}, connectionId: props.clientId!}).get();
+      } else {
+        if (!form.clientId) {
+          message.error("缺少客户id")
+          return
+        }
+        id = await store.service.mapping.create({...form}).get();
       }
-      id = await store.service.mapping.create({...form}).get();
+
     }
-    const data = await store.service.mapping.searchAndPage({pageNum: 1, pageSize: 1, id}).get();
-    emit("success", data && data.list.length ? data.list[0] : null);
+    if (props.fromClient === true) {
+      const data = await store.service.connection.mapping.load({id}).get();
+      // 显式断言当前分支对应的类型
+      emit("success", (data.length ? data[0] : null) as any);
+    } else {
+      const data = await store.service.mapping.searchAndPage({pageNum: 1, pageSize: 1, id}).get();
+      // 显式断言当前分支对应的类型
+      emit("success", (data && data.list.length ? data.list[0] : null) as any);
+    }
   } catch (e) {
     emit("error", e);
   }
@@ -276,7 +299,7 @@ function validateDisabledPorts(value: string): string | undefined {
         />
       </NFormItem>
 
-      <NFormItem>
+      <NFormItem v-if="props.fromClient!==true">
         <template #label>
           启用
           <FormHelp content="禁用时服务端直接中断连接"/>

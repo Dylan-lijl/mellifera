@@ -467,6 +467,12 @@ function infoMappingSuccess(item: ListMappingResponse | null) {
   mappingInfoDesc.value.show = false;
 }
 
+function clientRowClassName(row: ListClientResponse) {
+  return store.syncData.server.connected.includes(row.id)
+      ? 'client-connected'
+      : ''
+}
+
 onMounted(async () => {
   await loadConfig()
   await loadClientData()
@@ -537,11 +543,11 @@ onMounted(async () => {
         </n-card>
       </n-grid-item>
 
-      <!--      <n-grid-item>
-              <n-card size="small">
-                <n-statistic label="在线连接" :value="onlineCount"/>
-              </n-card>
-            </n-grid-item>-->
+      <n-grid-item>
+        <n-card size="small">
+          <n-statistic label="在线连接" :value="store.syncData.server.connected.length"/>
+        </n-card>
+      </n-grid-item>
 
       <!--      <n-grid-item>
               <n-card size="small">
@@ -658,6 +664,7 @@ onMounted(async () => {
           :data="client.data"
           :bordered="false"
           :single-line="false"
+          :row-class-name="clientRowClassName"
       >
         <template #render="{row,column}">
           <template v-if="column.key==='selection'">
@@ -693,6 +700,13 @@ onMounted(async () => {
                 <n-button type="error" quaternary>删除</n-button>
               </template>
               删除后对应用户将无法连接,确定要删除吗?
+            </n-popconfirm>
+            <n-popconfirm v-if="store.syncData.server.connected.includes(row.id)"
+            >
+              <template #trigger>
+                <n-button type="error" quaternary>断开</n-button>
+              </template>
+              断开用户连接同时会停止对应用户的映射服务,确定断开吗?
             </n-popconfirm>
           </template>
           <template v-else>
@@ -810,6 +824,7 @@ onMounted(async () => {
     >
       <NDrawerContent :title="mappingInfoDesc.title" closable>
         <MappingDetail
+            :from-client="false"
             :data="mappingInfoDesc.data"
             :clientId="client.checkedRowId"
             @success="infoMappingSuccess"
@@ -865,5 +880,7 @@ onMounted(async () => {
 .empty-state {
   padding: 24px 0;
 }
-
+:deep(.client-connected td) {
+  background-color: #E8F5E9;
+}
 </style>

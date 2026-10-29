@@ -24,6 +24,7 @@ function resetState(state: StateData): void {
     state.server.hosts = [];
     state.server.port = null;
     state.server.error = null;
+    state.server.connected = [];
 }
 
 const createContext: Creator = async (request): Promise<CreateResult | null> => {
@@ -39,6 +40,7 @@ const createContext: Creator = async (request): Promise<CreateResult | null> => 
     if (!item) {
         return null
     }
+    StateSyncManager.getState().server.connected.push(item.id);
     return {
         key: item.id,
         context: {

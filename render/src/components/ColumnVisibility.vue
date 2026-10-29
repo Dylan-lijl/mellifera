@@ -47,7 +47,7 @@ function hideAll() {
       </n-button>
     </template>
 
-    <div style="min-width: 180px">
+    <div style="min-width: 180px;max-height: 42vh;overflow: auto">
       <n-space justify="space-between" align="center">
         <strong>显示字段</strong>
         <n-space :size="8">

@@ -63,34 +63,21 @@ const rawServerModules = import.meta.glob<Constructor>(
     },
 )
 
-export function createRpcClient<
-    Role extends RpcRole,
-    TContext,
->(
-    role: Role,
+export function registerLocalControllers<TContext>(
+    role: RpcRole,
     router: RpcRouter<TContext>,
-    peer: RpcPeer<TContext>,
-): RpcProxyFor<Role> {
+): void {
     const localModules = (
         role === 'client' ? rawClientModules : rawServerModules
     ) as Record<string, Constructor>
 
-    const remoteModules = (
-        role === 'client' ? rawServerModules : rawClientModules
-    ) as Record<string, Constructor>
-
-    const getControllerName = (path: string): string => {
+    for (const [path, ControllerClass] of Object.entries(localModules)) {
         const fileName = path.split('/').pop()!
         const name = fileName
             .replace(/\.ts$/, '')
             .replace(/Controller$/, '')
 
-        return name.charAt(0).toLowerCase() + name.slice(1)
-    }
-
-    // 注册本地控制器
-    for (const [path, ControllerClass] of Object.entries(localModules)) {
-        const controllerName = getControllerName(path)
+        const controllerName = name.charAt(0).toLowerCase() + name.slice(1)
         const instance = new ControllerClass()
         const prototype = ControllerClass.prototype
 
@@ -99,7 +86,8 @@ export function createRpcClient<
 
             router.register(
                 `${controllerName}.${methodName}`,
-                wrapperResultMethod(async (params: unknown, context: TContext) => {
+                wrapperResultMethod(
+                    async (params: unknown, context: TContext) => {
                         const method = instance[methodName]
 
                         if (typeof method !== 'function') {
@@ -110,18 +98,35 @@ export function createRpcClient<
 
                         return await method.call(instance, params, context)
                     },
-                ))
+                ),
+            )
         }
     }
+}
 
-    // 创建远程控制器代理
+export function createRemoteControllerProxy<
+    Role extends RpcRole,
+    TContext,
+>(
+    role: Role,
+    peer: RpcPeer<TContext>,
+): RpcProxyFor<Role> {
+    const remoteModules = (
+        role === 'client' ? rawServerModules : rawClientModules
+    ) as Record<string, Constructor>
+
     const root: Record<
         string,
         Record<string, (...args: any[]) => any>
     > = {}
 
     for (const path of Object.keys(remoteModules)) {
-        const controllerName = getControllerName(path)
+        const fileName = path.split('/').pop()!
+        const name = fileName
+            .replace(/\.ts$/, '')
+            .replace(/Controller$/, '')
+
+        const controllerName = name.charAt(0).toLowerCase() + name.slice(1)
 
         if (root[controllerName]) {
             throw new Error(`Duplicate RPC controller: ${controllerName}`)
@@ -137,7 +142,12 @@ export function createRpcClient<
                 }
 
                 return async (params?: unknown) =>
-                    unwrapResult(await peer.request(`${controllerName}.${methodName}`, params,))
+                    unwrapResult(
+                        await peer.request(
+                            `${controllerName}.${methodName}`,
+                            params,
+                        ),
+                    )
             },
         })
     }
