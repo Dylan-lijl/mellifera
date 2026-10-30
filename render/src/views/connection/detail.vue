@@ -9,14 +9,15 @@ import {
   NSwitch,
   NSpace,
   type FormInst,
-  type FormRules, useDialog,
+  type FormRules, useDialog, useMessage,
 } from 'naive-ui'
 import type {
   ListConnectionResponse,
 } from '@mellifera/common/entity'
 import {useStore} from "@/store";
 import {createConnection} from '@mellifera/common/factory';
-
+import {showError} from "@/util";
+const message = useMessage();
 const props = defineProps<{
   data?: ListConnectionResponse | null
 }>()
@@ -104,14 +105,14 @@ async function handleSubmit() {
       await store.service.connection.update({
         ...form,
         id: props.data.id,
-      }).get();
+      }).errorMessage(r=>showError(message,r)).get();
       id = props.data.id;
     } else {
       id = await store.service.connection.create({
         ...form,
-      }).get();
+      }).errorMessage(r=>showError(message,r)).get();
     }
-    const data = await store.service.connection.searchAndPage({pageNum: 1, pageSize: 1, id}).get();
+    const data = await store.service.connection.searchAndPage({pageNum: 1, pageSize: 1, id}).errorMessage(r=>showError(message,r)).get();
     emit("success", data && data.list.length ? data.list[0] : null);
   } catch (e) {
     emit("error", e);

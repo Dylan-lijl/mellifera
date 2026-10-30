@@ -1,5 +1,7 @@
 import WebSocket from 'ws'
 import type {RpcTransport} from './RpcTransport'
+import {ResultApiException} from "@mellifera/common/CustomException";
+import {CONNECTION_FAILED} from "@mellifera/common/ResultCode";
 
 export class WebSocketTransport implements RpcTransport {
     private readonly socket: WebSocket;
@@ -27,7 +29,29 @@ export class WebSocketTransport implements RpcTransport {
 
             const onError = (error: Error) => {
                 cleanup()
-                reject(error)
+                if(error instanceof AggregateError&&(error as AggregateError).errors.length){
+                    let message='其他连接错误'+error;
+                    switch ((error as AggregateError).errors[0].code) {
+                        case 'ECONNREFUSED':
+                            message='连接被拒绝：服务器可能未启动或端口未监听';
+                            break;
+                        case 'ETIMEDOUT':
+                            message='连接超时';
+                            break;
+                        case 'ENOTFOUND':
+                            message='域名解析失败';
+                            break;
+                        case 'EHOSTUNREACH':
+                            message='目标主机不可达';
+                            break;
+                        case 'ECONNRESET':
+                            message='连接被对端重置';
+                            break;
+                    }
+                    reject(new ResultApiException({...CONNECTION_FAILED,other: message}));
+                }else{
+                    reject(error)
+                }
             }
 
             const onClose = () => {

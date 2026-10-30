@@ -69,7 +69,6 @@
                 secondary
                 :loading="store.apiState.service.connection.disconnect.requesting.has(item.id)"
                 @click="handleDisconnect(item)"
-                ghost
             >
               断开
             </n-button>
@@ -262,7 +261,8 @@
               <NPopconfirm @positive-click="()=>handleDeleteMapping(row)">
                 <template #trigger>
                   <NButton quaternary type="error"
-                           :disabled="store.syncData.connection.details.get(item.id)?.running!==runState.running.value">删除
+                           :disabled="store.syncData.connection.details.get(item.id)?.running!==runState.running.value">
+                    删除
                   </NButton>
                 </template>
                 确认删除吗?
@@ -387,7 +387,7 @@ async function reloadData() {
   if (store.apiState.service.connection.searchAndPage.requesting.size) {
     return;
   }
-  const data = await store.service.connection.searchAndPage(connection.value.page.get(connection.value.param)).get();
+  const data = await store.service.connection.searchAndPage(connection.value.page.get(connection.value.param)).errorMessage(r => showError(message, r)).get();
   (connection.value.data = data.list).forEach(item => reloadMappingData(item.id))
 }
 
@@ -500,14 +500,14 @@ async function handleConnect(item: ListConnectionResponse) {
   if (store.apiState.service.connection.connect.requesting.has(item.id)) {
     return;
   }
-  await store.service.connection.connect({id: item.id}).get();
+  await store.service.connection.connect({id: item.id}).errorMessage(r => showError(message, r)).get();
 }
 
 async function handleDisconnect(item: ListConnectionResponse) {
   if (store.apiState.service.connection.disconnect.requesting.has(item.id)) {
     return;
   }
-  await store.service.connection.disconnect({id: item.id}).get();
+  await store.service.connection.disconnect({id: item.id}).errorMessage(r => showError(message, r)).get();
 }
 
 function handleEdit(item: ListConnectionResponse) {
@@ -526,7 +526,7 @@ function handleDelete(item: ListConnectionResponse) {
       if (store.apiState.service.connection.delete.requesting.has(item.id)) {
         return
       }
-      await store.service.connection.delete({id: item.id}).get();
+      await store.service.connection.delete({id: item.id}).errorMessage(r => showError(message, r)).get();
       connection.value.data = connection.value.data.filter(dist => dist.id !== item.id);
       connection.value.page.total = Math.max(0, connection.value.page.total - 1);
       if (connection.value.data.length === 0 && connection.value.page.current > 1) {
@@ -560,9 +560,9 @@ async function handlePositiveClick(row: ListConnectionMappingResponse, isEnabled
     return;
   }
   if (isEnabled) {
-    row.enabled = p.enabled;
+    row.enabled = p.enabled!;
   } else {
-    row.autoUpdate = p.autoUpdate;
+    row.autoUpdate = p.autoUpdate!;
   }
 }
 

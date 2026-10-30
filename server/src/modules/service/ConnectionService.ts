@@ -427,18 +427,15 @@ export class ConnectionService {
             if (!entity) {
                 throw new ResultApiException(ID_NOT_EXIST_EXCEPTION);
             }
-            const context = this.getConnectedContext(entity.connectionId);
+            // 服务端操作成功后，再修改本地数据
+            const values: Partial<ConnectionMappingModel> = {};
             // 先修改服务端映射 todo
             if (config) {
+                const context = this.getConnectedContext(entity.connectionId);
                 await context.rpcClient.mapping.update({
                     token: context.client.getContext().token,
                     ...config,
                 });
-            }
-            // 服务端操作成功后，再修改本地数据
-            const values: Partial<ConnectionMappingModel> = {};
-
-            if (config) {
                 const info = await context.rpcClient.mapping.list({
                     token: context.client.getContext().token,
                     id: entity.remoteId,

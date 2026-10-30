@@ -19,13 +19,11 @@ export const ConnectionMappingDefinition = z.object({
         .describe('远程最新的映射配置'),
 
     enabled: z.boolean()
-        .default(true)
         .describe('是否启用'),
 
     autoUpdate: z.boolean()
-        .default(false)
         .describe('是否自动更新'),
-    remoteRemove: z.boolean().default(false).describe("远程是否删除"),
+    remoteRemove: z.boolean().describe("远程是否删除"),
     createdAt: z.date().describe('创建时间'),
     updatedAt: z.date().describe('修改时间'),
 });
@@ -60,6 +58,8 @@ export const UpdateConnectionMappingDefinition =
         config: MappingDefinition.omit({
             enabled: true,
             clientId: true,
+            createdAt: true,
+            updatedAt: true,
         }).optional(),
         enabled: ConnectionMappingDefinition.shape.enabled.optional(),
         autoUpdate: ConnectionMappingDefinition.shape.autoUpdate.optional(),

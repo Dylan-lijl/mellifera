@@ -17,6 +17,7 @@ import type {
 import {useStore} from "@/store";
 import {createMapping} from '@mellifera/common/factory';
 import {transportProtocolOptions} from "@mellifera/common/constant";
+import {showError} from "@/util";
 
 const props = defineProps<{
   fromClient?: T
@@ -145,32 +146,40 @@ async function handleSubmit() {
         await store.service.connection.mapping.update({
           config: {...form, id: (props.data as ListConnectionMappingResponse).remoteId} as any,
           id: props.data.id
-        }).get();
+        }).errorMessage(r => showError(message, r)).get();
       } else {
         await store.service.mapping.update({
           ...form,
           id: props.data.id
-        }).get();
+        }).errorMessage(r => showError(message, r)).get();
       }
       id = props.data.id;
     } else {
       if (props.fromClient) {
-        id = await store.service.connection.mapping.add({config: {...form}, connectionId: props.clientId!}).get();
+        id = await store.service.connection.mapping.add({
+          config: {...form},
+          connectionId: props.clientId!,
+          enabled: true
+        }).errorMessage(r => showError(message, r)).get();
       } else {
         if (!form.clientId) {
           message.error("缺少客户id")
           return
         }
-        id = await store.service.mapping.create({...form}).get();
+        id = await store.service.mapping.create({...form}).errorMessage(r => showError(message, r)).get();
       }
 
     }
     if (props.fromClient === true) {
-      const data = await store.service.connection.mapping.load({id}).get();
+      const data = await store.service.connection.mapping.load({id}).errorMessage(r => showError(message, r)).get();
       // 显式断言当前分支对应的类型
       emit("success", (data.length ? data[0] : null) as any);
     } else {
-      const data = await store.service.mapping.searchAndPage({pageNum: 1, pageSize: 1, id}).get();
+      const data = await store.service.mapping.searchAndPage({
+        pageNum: 1,
+        pageSize: 1,
+        id
+      }).errorMessage(r => showError(message, r)).get();
       // 显式断言当前分支对应的类型
       emit("success", (data && data.list.length ? data.list[0] : null) as any);
     }

@@ -23,6 +23,7 @@ export const NOT_CONNECTED: ResultCode = {code: 804, message: "未连接!"} as c
 export const AUTHENTICATION_FAILED: ResultCode = {code: 805, message: "认证失败!"} as const;
 export const CLIENT_DISABLED: ResultCode = {code: 806, message: "用户已被禁用!"} as const;
 export const MISSING_AUTH: ResultCode = {code: 807, message: "缺少认证信息!"} as const;
+export const CONNECTION_FAILED: ResultCode = {code: 808, message: "连接失败!"} as const;
 
 export function isSuccess(code: undefined | null | number) {
     if (!code) {

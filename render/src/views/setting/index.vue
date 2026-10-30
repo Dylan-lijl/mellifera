@@ -48,7 +48,9 @@
 import {useStore} from '@/store'
 import {onMounted, ref} from 'vue'
 import type {StoreKey} from '@mellifera/common/constant'
-
+import {showError} from "@/util";
+import {useMessage} from "naive-ui";
+const message = useMessage()
 const requesting = ref({
   remove: new Set<string>(),
 })
@@ -57,7 +59,7 @@ const store = useStore()
 const data = ref<{ key: string; value: unknown }[]>([])
 
 async function reloadSetting() {
-  data.value = await store.store.getAll().get() as any;
+  data.value = await store.store.getAll().errorMessage(r=>showError(message,r)).get() as any;
 }
 
 function deleteSetting(key: string) {
@@ -67,7 +69,7 @@ function deleteSetting(key: string) {
 
   requesting.value.remove.add(key)
 
-  store.store.deleteData(key as StoreKey).get()
+  store.store.deleteData(key as StoreKey).errorMessage(r=>showError(message,r)).get()
       .then(() => {
         const index = data.value.findIndex(item => item.key === key)
 

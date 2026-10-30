@@ -8,14 +8,15 @@ import {
   NSwitch,
   NSpace,
   type FormInst,
-  type FormRules,
+  type FormRules, useMessage,
 } from 'naive-ui'
 import type {
-  ListClientResponse, ListMappingResponse,
+  ListClientResponse,
 } from '@mellifera/common/entity'
 import {useStore} from "@/store";
 import {createClient} from '@mellifera/common/factory';
-
+import {showError} from "@/util";
+const message = useMessage();
 const props = defineProps<{
   data?: ListClientResponse | null
 }>()
@@ -91,7 +92,7 @@ async function handleSubmit() {
         token,
         enabled: form.enabled,
         description: form.description?.trim() || null,
-      }).get();
+      }).errorMessage(r=>showError(message,r)).get();
       id = props.data.id;
     } else {
       id = await store.service.client.create({
@@ -99,9 +100,9 @@ async function handleSubmit() {
         token,
         enabled: form.enabled,
         description: form.description?.trim() || null,
-      }).get();
+      }).errorMessage(r=>showError(message,r)).get();
     }
-    const data = await store.service.client.searchAndPage({pageNum: 1, pageSize: 1, id}).get();
+    const data = await store.service.client.searchAndPage({pageNum: 1, pageSize: 1, id}).errorMessage(r=>showError(message,r)).get();
     emit("success", data && data.list.length ? data.list[0] : null);
   } catch (e) {
     emit("error", e);

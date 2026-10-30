@@ -79,14 +79,14 @@ async function updateHosts() {
   if (store.apiState.service.server.getNetworkIpInfos.requesting.size) {
     return
   }
-  hostOptions.value = await store.service.server.getNetworkIpInfos().get();
+  hostOptions.value = await store.service.server.getNetworkIpInfos().errorMessage(r=>showError(message,r)).get();
 
 }
 
 async function loadConfig() {
   if (!store.apiState.service.server.getConfig.requesting.size) {
     try {
-      config.value = await store.service.server.getConfig().get();
+      config.value = await store.service.server.getConfig().errorMessage(r=>showError(message,r)).get();
     } catch {
 
     }
@@ -97,7 +97,7 @@ async function handleSave() {
   if (store.apiState.service.server.saveConfig.requesting.size) {
     return
   }
-  await store.service.server.saveConfig(config.value).get();
+  await store.service.server.saveConfig(config.value).errorMessage(r=>showError(message,r)).get();
 }
 
 async function handleStart() {
@@ -105,7 +105,7 @@ async function handleStart() {
       || ([runState.starting.value, runState.running.value] as RunStateType[]).includes(store.syncData.server.running)) {
     return
   }
-  await store.service.server.start().get();
+  await store.service.server.start().errorMessage(r=>showError(message,r)).get();
 }
 
 async function handleStop() {
@@ -113,7 +113,7 @@ async function handleStop() {
       || ([runState.stopping.value, runState.idle.value] as RunStateType[]).includes(store.syncData.server.running)) {
     return
   }
-  await store.service.server.stop().get();
+  await store.service.server.stop().errorMessage(r=>showError(message,r)).get();
 }
 
 //=================== client ===========================
