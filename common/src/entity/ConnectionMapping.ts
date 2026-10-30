@@ -86,9 +86,16 @@ export const ListConnectionMappingRequestDefinition =
     SearchAndPageDefinition.extend({
         enabled: z.boolean().nullish(),
         connectionId: ConnectionMappingDefinition.shape.connectionId,
+        id: ConnectionMappingDefinition.shape.id.nullish(),
+    }).omit({
+        pageNum: true,
+        pageSize: true,
     }).describe('查询');
 
 export interface ListConnectionMappingRequest extends z.input<typeof ListConnectionMappingRequestDefinition> {
 }
+
 export const ListConnectionMappingResponseDefinition = ConnectionMappingDefinition;
-export interface ListConnectionMappingResponse extends z.input<typeof ListConnectionMappingResponseDefinition> {}
+
+export interface ListConnectionMappingResponse extends z.input<typeof ListConnectionMappingResponseDefinition> {
+}

@@ -16,7 +16,8 @@ import type {
 } from '@mellifera/common/entity'
 import {useStore} from "@/store";
 import {createConnection} from '@mellifera/common/factory';
-import {showError} from "@/util";
+import {extractErrorMessage} from "@/util";
+
 const message = useMessage();
 const props = defineProps<{
   data?: ListConnectionResponse | null
@@ -105,14 +106,18 @@ async function handleSubmit() {
       await store.service.connection.update({
         ...form,
         id: props.data.id,
-      }).errorMessage(r=>showError(message,r)).get();
+      }).errorMessage(r => extractErrorMessage(r)).get();
       id = props.data.id;
     } else {
       id = await store.service.connection.create({
         ...form,
-      }).errorMessage(r=>showError(message,r)).get();
+      }).errorMessage(r => extractErrorMessage(r)).get();
     }
-    const data = await store.service.connection.searchAndPage({pageNum: 1, pageSize: 1, id}).errorMessage(r=>showError(message,r)).get();
+    const data = await store.service.connection.searchAndPage({
+      pageNum: 1,
+      pageSize: 1,
+      id
+    }).errorMessage(r => extractErrorMessage(r)).get();
     emit("success", data && data.list.length ? data.list[0] : null);
   } catch (e) {
     emit("error", e);

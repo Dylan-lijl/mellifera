@@ -10,7 +10,8 @@ import {
     type CreateConnectionMappingRequest,
     type UpdateConnectionMappingRequest, DeleteByIdDefinition, type ConnectionMappingModel,
     CreateConnectionMappingDefinition,
-    UpdateConnectionMappingDefinition, type ListConnectionMappingResponse
+    UpdateConnectionMappingDefinition, type ListConnectionMappingResponse, type ListConnectionMappingRequest,
+    ListConnectionMappingRequestDefinition
 } from "@mellifera/common/entity"
 import {ConnectionEntity, type ConnectionField} from '@/db/ConnectionEntity'
 import {ResultApiException} from "@mellifera/common/CustomException";
@@ -294,16 +295,20 @@ export class ConnectionService {
      * 操作映射
      */
     mapping = {
-        load: async (request: FindByIdRequest) => {
-            const {id} = FindByIdDefinition.parse(request);
+        load: async (request: ListConnectionMappingRequest) => {
+            const {id, connectionId} = ListConnectionMappingRequestDefinition.parse(request);
             // 1. 先查询本地数据
-            const loadLocal =async () => (await ConnectionMappingEntity.findAll({
-                where: {connectionId: id},
+            const where: Partial<ConnectionMappingEntity> = {connectionId};
+            if (id) {
+                where.id = id;
+            }
+            const loadLocal = async () => (await ConnectionMappingEntity.findAll({
+                where,
                 order: [['updatedAt', 'DESC']],
-            })).map(item=>item.toJSON<ConnectionMappingEntity>());
+            })).map(item => item.toJSON<ConnectionMappingEntity>());
             const localEntities = await loadLocal();
             // 2. 检查连接状态
-            const context = this.getConnectedContext(id, false);
+            const context = this.getConnectedContext(connectionId, false);
             if (
                 !context ||
                 !context.client?.getTransPort()?.isOpen ||
@@ -313,7 +318,7 @@ export class ConnectionService {
                 // 未连接时，直接返回本地数据
                 return localEntities as ListConnectionMappingResponse[];
             }
-            const connectionEntity = await ConnectionEntity.findByPk(id);
+            const connectionEntity = await ConnectionEntity.findByPk(connectionId);
             if (!connectionEntity) {
                 throw new ResultApiException(NOT_CONNECTED);
             }
@@ -335,7 +340,7 @@ export class ConnectionService {
                     continue;
                 }
                 await this.mapping.doAdd({
-                    connectionId: id,
+                    connectionId,
                     remoteId: remote.id,
                     config: remote,
                     enabled: !!connectionEntity.autoUpdate,
@@ -429,7 +434,7 @@ export class ConnectionService {
             }
             // 服务端操作成功后，再修改本地数据
             const values: Partial<ConnectionMappingModel> = {};
-            // 先修改服务端映射 todo
+            // 先修改服务端映射
             if (config) {
                 const context = this.getConnectedContext(entity.connectionId);
                 await context.rpcClient.mapping.update({
@@ -455,7 +460,7 @@ export class ConnectionService {
             }
 
             await entity.update(values);
-            if (enabled === false) {
+            if (enabled === false || config) {
                 await this.mapping.disconnect({id: entity.id});
             }
             return entity.id as number;
@@ -477,8 +482,9 @@ export class ConnectionService {
                 token: context.client.getContext().token,
                 id: entity.remoteId,
             });
-            // 服务端删除成功后，再删除本地关联记录
             await entity.destroy();
+            // 服务端删除成功后，再删除本地关联记录
+            await this.mapping.disconnect({id: entity.id});
             return true;
         },
     }

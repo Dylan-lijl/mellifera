@@ -90,13 +90,15 @@
               </template>
               编辑
             </n-button>
-            <n-button type="error" size="small" @click="()=>handleDelete(item)" ghost :bordered="false"
-                      :disabled="store.syncData.connection.details.get(item.id)?.running===runState.running.value">
-              <template #icon>
-                <DeleteFilled/>
+            <NPopconfirm @positive-click="()=>handleDelete(item)">
+              <template #trigger>
+                <NButton ghost type="error" :bordered="false"
+                         :disabled="store.syncData.connection.details.get(item.id)?.running===runState.running.value">
+                  删除
+                </NButton>
               </template>
-              删除
-            </n-button>
+              确认删除吗?
+            </NPopconfirm>
             <!--            <n-popover trigger="hover" placement="bottom-end">
                           <template #trigger>
                             <n-button quaternary circle size="small">
@@ -353,7 +355,7 @@ import {useStore} from "@/store";
 import Detail from "./detail.vue"
 import {contentContainer, runState, transportProtocolOptions} from "@mellifera/common/constant";
 import type {SuperTableColumn} from "@/types";
-import {formatDateTime, showError} from "@/util";
+import {formatDateTime, extractErrorMessage} from "@/util";
 import MappingDetail from "@/views/server/mappingDetail.vue";
 
 const dialog = useDialog()
@@ -387,16 +389,22 @@ async function reloadData() {
   if (store.apiState.service.connection.searchAndPage.requesting.size) {
     return;
   }
-  const data = await store.service.connection.searchAndPage(connection.value.page.get(connection.value.param)).errorMessage(r => showError(message, r)).get();
-  (connection.value.data = data.list).forEach(item => reloadMappingData(item.id))
+  try {
+    const data = await store.service.connection.searchAndPage(connection.value.page.get(connection.value.param)).errorMessage(r => extractErrorMessage(r)).get();
+    (connection.value.data = data.list).forEach(item => reloadMappingData(item.id))
+  } catch (error) {
+  }
 }
 
-async function reloadMappingData(id: number) {
-  if (store.apiState.service.connection.mapping.load.requesting.has(id)) {
+async function reloadMappingData(connectionId: number) {
+  if (store.apiState.service.connection.mapping.load.requesting.has(connectionId)) {
     return;
   }
-  const r = await store.service.connection.mapping.load({id}).errorMessage(r => showError(message, r)).get()
-  mappingMap.value.set(id, r);
+  try {
+    const r = await store.service.connection.mapping.load({connectionId}).errorMessage(r => extractErrorMessage(r)).get()
+    mappingMap.value.set(connectionId, r);
+  } catch (error) {
+  }
 }
 
 const mappingColumns: SuperTableColumn<ListConnectionMappingResponse> = reactive([
@@ -500,14 +508,21 @@ async function handleConnect(item: ListConnectionResponse) {
   if (store.apiState.service.connection.connect.requesting.has(item.id)) {
     return;
   }
-  await store.service.connection.connect({id: item.id}).errorMessage(r => showError(message, r)).get();
+  try {
+    await store.service.connection.connect({id: item.id}).errorMessage(r => extractErrorMessage(r)).get();
+    await reloadMappingData(item.id)
+  } catch (error) {
+  }
 }
 
 async function handleDisconnect(item: ListConnectionResponse) {
   if (store.apiState.service.connection.disconnect.requesting.has(item.id)) {
     return;
   }
-  await store.service.connection.disconnect({id: item.id}).errorMessage(r => showError(message, r)).get();
+  try {
+    await store.service.connection.disconnect({id: item.id}).errorMessage(r => extractErrorMessage(r)).get();
+  } catch (error) {
+  }
 }
 
 function handleEdit(item: ListConnectionResponse) {
@@ -526,15 +541,18 @@ function handleDelete(item: ListConnectionResponse) {
       if (store.apiState.service.connection.delete.requesting.has(item.id)) {
         return
       }
-      await store.service.connection.delete({id: item.id}).errorMessage(r => showError(message, r)).get();
-      connection.value.data = connection.value.data.filter(dist => dist.id !== item.id);
-      connection.value.page.total = Math.max(0, connection.value.page.total - 1);
-      if (connection.value.data.length === 0 && connection.value.page.current > 1) {
-        const maxPage = Math.ceil(connection.value.page.total / connection.value.page.pageSize) || 1;
-        if (connection.value.page.current > maxPage) {
-          connection.value.page.current = maxPage;
+      try {
+        await store.service.connection.delete({id: item.id}).errorMessage(r => extractErrorMessage(r)).get();
+        connection.value.data = connection.value.data.filter(dist => dist.id !== item.id);
+        connection.value.page.total = Math.max(0, connection.value.page.total - 1);
+        if (connection.value.data.length === 0 && connection.value.page.current > 1) {
+          const maxPage = Math.ceil(connection.value.page.total / connection.value.page.pageSize) || 1;
+          if (connection.value.page.current > maxPage) {
+            connection.value.page.current = maxPage;
+          }
+          await reloadData();
         }
-        await reloadData();
+      } catch (error) {
       }
     },
   })
@@ -555,14 +573,14 @@ async function handlePositiveClick(row: ListConnectionMappingResponse, isEnabled
   } else {
     p.autoUpdate = !row.autoUpdate;
   }
-  const r = await store.service.connection.mapping.update(p).errorMessage((r) => showError(message, r)).get();
-  if (!r) {
-    return;
-  }
-  if (isEnabled) {
-    row.enabled = p.enabled!;
-  } else {
-    row.autoUpdate = p.autoUpdate!;
+  try {
+    await store.service.connection.mapping.update(p).errorMessage((r) => extractErrorMessage(r)).get();
+    if (isEnabled) {
+      row.enabled = p.enabled!;
+    } else {
+      row.autoUpdate = p.autoUpdate!;
+    }
+  } catch (error) {
   }
 }
 
@@ -573,8 +591,15 @@ function handleEditMapping(row: ListConnectionMappingResponse) {
   mappingInfoDesc.value.clientId = row.connectionId;
 }
 
-function handleDeleteMapping(row: ListConnectionMappingResponse) {
-  message.info(`删除映射：${row?.appliedConfig?.name ?? row?.remoteConfig?.name ?? row.id}`)
+async function handleDeleteMapping(row: ListConnectionMappingResponse) {
+  if (store.apiState.service.connection.mapping.remove.requesting.has(row.id)) {
+    return;
+  }
+  try {
+    await store.service.connection.mapping.remove({id: row.id}).errorMessage(extractErrorMessage).get();
+  } catch (error) {
+
+  }
 }
 
 function infoMappingSuccess(info: ListConnectionMappingResponse | null) {
@@ -595,6 +620,7 @@ function infoMappingSuccess(info: ListConnectionMappingResponse | null) {
   }
   // 4. 将更新后的数组重新 set 回 Map 中，确保 Vue 3 能够触发响应式更新
   mappingMap.value.set(connectionId, [...list])
+  mappingInfoDesc.value.show = false
 }
 
 function infoSuccess(item: InfoConnectionResponse | null) {

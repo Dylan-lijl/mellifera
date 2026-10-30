@@ -1,5 +1,5 @@
 import {isReactive, isReadonly, toRaw} from "@vue/reactivity";
-import type {MessageApiInjection} from "naive-ui/es/message/src/MessageProvider";
+import {ResultApiException} from "@mellifera/common/CustomException";
 
 export function deepToRaw<T>(value: T): T {
     if (isReactive(value) || isReadonly(value)) {
@@ -60,6 +60,7 @@ export function joinString(
         .filter((item): item is string => typeof item === 'string' && item !== '')
         .join(config.separator ?? '')
 }
+
 /**
  * 将时间转换为 yyyy-MM-dd HH:mm:ss 格式
  *
@@ -81,11 +82,22 @@ export function formatDateTime(
 
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
-export function showError(message: MessageApiInjection, error: any) {
+
+export function extractErrorMessage(error: any): string | boolean {
     if (!error) return false
-    const text = error?.code
-        ? joinString([error?.message, error?.other], {separator: ":"})
-        : String(error)
-    message.error(text)
+    if (error instanceof ResultApiException) {
+        return joinString([error.code.message, error.code.other], {separator: ":"})
+    }
+    if (error instanceof Error) {
+        return error.message
+    }
+    if (error?.code) {
+        return joinString([error?.message, error?.other], {separator: ":"});
+    }
+    if (typeof error === 'string') {
+        return error;
+    } else if (typeof error === 'object') {
+        return JSON.stringify(error)
+    }
     return false;
 }

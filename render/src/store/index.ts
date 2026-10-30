@@ -299,7 +299,6 @@ export function applyStatePatch(
 }
 
 export const useStore = defineStore("main", () => {
-    const m = window.$message;
     const state = reactive({
         apiState: createApiState(ApiDefinition),
         data: {
@@ -326,8 +325,8 @@ export const useStore = defineStore("main", () => {
         ApiDefinition,
         window.api,
         state.apiState,
-        (message) => m.success(message),
-        (message) => m.error(message),
+        (message) => window.$message.success(message),
+        (message) => window.$message.error(message),
     );
     return {
         ...toRefs(state),

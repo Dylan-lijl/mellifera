@@ -17,7 +17,7 @@ import type {
 import {useStore} from "@/store";
 import {createMapping} from '@mellifera/common/factory';
 import {transportProtocolOptions} from "@mellifera/common/constant";
-import {showError} from "@/util";
+import {extractErrorMessage} from "@/util";
 
 const props = defineProps<{
   fromClient?: T
@@ -146,12 +146,12 @@ async function handleSubmit() {
         await store.service.connection.mapping.update({
           config: {...form, id: (props.data as ListConnectionMappingResponse).remoteId} as any,
           id: props.data.id
-        }).errorMessage(r => showError(message, r)).get();
+        }).errorMessage(r => extractErrorMessage( r)).get();
       } else {
         await store.service.mapping.update({
           ...form,
           id: props.data.id
-        }).errorMessage(r => showError(message, r)).get();
+        }).errorMessage(r => extractErrorMessage( r)).get();
       }
       id = props.data.id;
     } else {
@@ -160,18 +160,18 @@ async function handleSubmit() {
           config: {...form},
           connectionId: props.clientId!,
           enabled: true
-        }).errorMessage(r => showError(message, r)).get();
+        }).errorMessage(r => extractErrorMessage( r)).get();
       } else {
         if (!form.clientId) {
           message.error("缺少客户id")
           return
         }
-        id = await store.service.mapping.create({...form}).errorMessage(r => showError(message, r)).get();
+        id = await store.service.mapping.create({...form}).errorMessage(r => extractErrorMessage( r)).get();
       }
 
     }
     if (props.fromClient === true) {
-      const data = await store.service.connection.mapping.load({id}).errorMessage(r => showError(message, r)).get();
+      const data = await store.service.connection.mapping.load({connectionId: props.clientId!,id}).errorMessage(r => extractErrorMessage( r)).get();
       // 显式断言当前分支对应的类型
       emit("success", (data.length ? data[0] : null) as any);
     } else {
@@ -179,7 +179,7 @@ async function handleSubmit() {
         pageNum: 1,
         pageSize: 1,
         id
-      }).errorMessage(r => showError(message, r)).get();
+      }).errorMessage(r => extractErrorMessage( r)).get();
       // 显式断言当前分支对应的类型
       emit("success", (data && data.list.length ? data.list[0] : null) as any);
     }

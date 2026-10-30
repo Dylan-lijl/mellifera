@@ -35,7 +35,7 @@ import type {NetworkIpInfo} from "@mellifera/common/types";
 import {Eye24Regular as Eye} from "@vicons/fluent"
 import Detail from "./detail.vue";
 import {createPagination} from "@mellifera/common/util";
-import {formatDateTime, showError} from "@/util";
+import {formatDateTime, extractErrorMessage} from "@/util";
 import type {SuperTableColumn} from "@/types";
 import MappingDetail from "@/views/server/mappingDetail.vue";
 
@@ -79,14 +79,14 @@ async function updateHosts() {
   if (store.apiState.service.server.getNetworkIpInfos.requesting.size) {
     return
   }
-  hostOptions.value = await store.service.server.getNetworkIpInfos().errorMessage(r=>showError(message,r)).get();
+  hostOptions.value = await store.service.server.getNetworkIpInfos().errorMessage(r=>extractErrorMessage(r)).get();
 
 }
 
 async function loadConfig() {
   if (!store.apiState.service.server.getConfig.requesting.size) {
     try {
-      config.value = await store.service.server.getConfig().errorMessage(r=>showError(message,r)).get();
+      config.value = await store.service.server.getConfig().errorMessage(r=>extractErrorMessage(r)).get();
     } catch {
 
     }
@@ -97,7 +97,7 @@ async function handleSave() {
   if (store.apiState.service.server.saveConfig.requesting.size) {
     return
   }
-  await store.service.server.saveConfig(config.value).errorMessage(r=>showError(message,r)).get();
+  await store.service.server.saveConfig(config.value).errorMessage(r=>extractErrorMessage(r)).get();
 }
 
 async function handleStart() {
@@ -105,7 +105,7 @@ async function handleStart() {
       || ([runState.starting.value, runState.running.value] as RunStateType[]).includes(store.syncData.server.running)) {
     return
   }
-  await store.service.server.start().errorMessage(r=>showError(message,r)).get();
+  await store.service.server.start().errorMessage(r=>extractErrorMessage(r)).get();
 }
 
 async function handleStop() {
@@ -113,7 +113,7 @@ async function handleStop() {
       || ([runState.stopping.value, runState.idle.value] as RunStateType[]).includes(store.syncData.server.running)) {
     return
   }
-  await store.service.server.stop().errorMessage(r=>showError(message,r)).get();
+  await store.service.server.stop().errorMessage(r=>extractErrorMessage(r)).get();
 }
 
 //=================== client ===========================
@@ -201,7 +201,7 @@ async function loadClientData() {
     return;
   }
   const data = await store.service.client.searchAndPage(client.page.get(client.param))
-      .errorMessage((r) => showError(message, r))
+      .errorMessage((r) => extractErrorMessage( r))
       .get();
   client.data = data.list;
 }
@@ -213,7 +213,7 @@ async function handleClientChangeEnable(row: ListClientResponse, value: boolean)
   const v = await store.service.client.enable({
     id: row.id,
     enabled: value
-  }).errorMessage(r => showError(message, r)).get();
+  }).errorMessage(r => extractErrorMessage( r)).get();
   if (v === undefined) {
     row.enabled = value;
   }
@@ -237,7 +237,7 @@ async function handleClientDelete(row: ListClientResponse) {
     return
   }
   try {
-    await store.service.client.delete({id: row.id}).errorMessage((r) => showError(message, r))
+    await store.service.client.delete({id: row.id}).errorMessage((r) => extractErrorMessage( r))
         .get();
     client.data = client.data.filter(item => item.id !== row.id);
   } catch (error) {
@@ -390,7 +390,7 @@ async function loadMappingData() {
     ...mapping.param,
     clientId: client.checkedRowId
   }))
-      .errorMessage((r) => showError(message, r))
+      .errorMessage((r) => extractErrorMessage( r))
       .get();
   mapping.data = data.list;
 }
@@ -402,7 +402,7 @@ async function handleMappingChangeEnable(row: ListMappingResponse, value: boolea
   const v = await store.service.mapping.enable({
     id: row.id,
     enabled: value
-  }).errorMessage(r => showError(message, r)).get();
+  }).errorMessage(r => extractErrorMessage( r)).get();
   if (v === undefined) {
     row.enabled = value;
   }
@@ -426,7 +426,7 @@ async function handleMappingDelete(row: ListMappingResponse) {
     return
   }
   try {
-    await store.service.mapping.delete({id: row.id}).errorMessage((r) => showError(message, r))
+    await store.service.mapping.delete({id: row.id}).errorMessage((r) => extractErrorMessage( r))
         .get();
     mapping.data = mapping.data.filter(item => item.id !== row.id);
   } catch (error) {

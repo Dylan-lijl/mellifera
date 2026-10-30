@@ -5,6 +5,7 @@ import type {
 import type {RequestChain, ApiResponse, ApiData} from '@mellifera/common/types'
 import {deepToRaw} from "@/util";
 import SuperJSON from "superjson";
+import {ResultApiException} from "@mellifera/common/CustomException";
 
 export interface RequestHooks {
     requesting: Set<LoadingKey>;
@@ -85,13 +86,15 @@ export class RequestChainImpl<
             const success = isSuccess(res)
             const handler = success ? this.successHandler : this.errorHandler
             const message = handler?.(res)
-
             if (typeof message === 'string' && message.length > 0) {
                 (success
                     ? this.hooks.showSuccessMessage
                     : this.hooks.showErrorMessage)(message)
+                //返回true代表不要抛异常
             }
-
+            if (!success&&typeof message === 'string'&&message.length) {
+                throw new ResultApiException({...res})
+            }
             return this.metaMode ? res : getData(res)
         } finally {
             for (const key of keys) {

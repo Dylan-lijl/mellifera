@@ -11,6 +11,7 @@ import {
     CreateConnectionRequest, CreateMappingRequest, DeleteByIdRequest, EnabledRequest,
     FindByIdRequest, InfoClientResponse,
     InfoConnectionResponse, InfoMappingResponse, type ListClientRequest, ListClientResponse,
+    ListConnectionMappingRequest,
     ListConnectionMappingResponse,
     ListConnectionResponse, ListMappingRequest,
     ListMappingResponse,
@@ -40,7 +41,7 @@ export const SystemApiDefinition = {
 const storeWrapper: WrapperName[] = ["resultWrapper", "logWrapper"];
 const commonWrapper: WrapperName[] = ["resultWrapper", "logWrapper"];
 export const ConnectionMappingApiDefinition = {
-    load: method<(request: FindByIdRequest) => Promise<ListConnectionMappingResponse[]>>({wrappers: commonWrapper}),
+    load: method<(request: ListConnectionMappingRequest) => Promise<ListConnectionMappingResponse[]>>({wrappers: commonWrapper}),
     add: method<(request: CreateConnectionMappingRequest) => Promise<number>>({wrappers: commonWrapper}),
     update: method<(request: UpdateConnectionMappingRequest) => Promise<number>>({wrappers: commonWrapper}),
     disconnect: method<(request: FindByIdRequest) => Promise<void>>({wrappers: commonWrapper}),
