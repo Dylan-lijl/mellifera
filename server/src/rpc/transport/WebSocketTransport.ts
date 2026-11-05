@@ -69,7 +69,7 @@ export class WebSocketTransport implements RpcTransport {
         return this.socket.readyState === WebSocket.OPEN
     }
 
-    send(data: string) {
+    async send(data: string) {
         if (!this.isOpen) throw new Error('WebSocket is not open')
         this.socket.send(data, error => {
             if (error) this.socket.emit('error', error)

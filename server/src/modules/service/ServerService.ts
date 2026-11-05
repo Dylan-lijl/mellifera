@@ -2,22 +2,21 @@ import {getData, saveData} from "@/utils/Store";
 import StateSyncManager from "@/StateSyncManager";
 import {type ServerConfig, type TokenRequest} from "@mellifera/common/entity";
 import {networkType, runState} from "@mellifera/common/constant";
-import {
-    ControlServer, type CreateResult, type Creator
-} from "@/modules/service/server/ControlServer";
 import {ResultApiException} from "@mellifera/common/CustomException";
 import {
     FAILED_TO_START,
     FAILED_TO_STOP,
     DATA_NOT_FOUND_EXCEPTION,
     INVALID_PORT,
-    NOT_CONNECTED
 } from "@mellifera/common/ResultCode";
 import type {NetworkIpInfo} from "@mellifera/common/types";
 import * as os from "node:os";
 import {isIP} from "node:net";
 import type {StateData} from "@mellifera/common/stateSync";
-import {ClientEntity} from "@/db/ClientEntity";
+import {QuicServer} from "@/modules/service/server/QuicServer";
+import {ConnectionDispatcher} from "@/modules/service/server/ConnectionDispatcher";
+import {ControlConnectionHandler} from "@/modules/service/server/ControlConnectionHandler";
+import {DataConnectionHandler} from "@/modules/service/server/DataConnectionHandler";
 
 function resetState(state: StateData): void {
     state.server.running = runState.idle.value;
@@ -27,35 +26,10 @@ function resetState(state: StateData): void {
     state.server.connected = [];
 }
 
-const createContext: Creator = async (request): Promise<CreateResult | null> => {
-    const authorization = request.headers.authorization;
-    if (!authorization) {
-        return null;
-    }
-    const token = authorization.replace(/^Bearer\s+/i, '')
-    if (!token) {
-        return null
-    }
-    const item = await ClientEntity.findOne({where: {token}});
-    if (!item) {
-        return null
-    }
-    StateSyncManager.getState().server.connected.push(item.id);
-    return {
-        key: item.id,
-        context: {
-            clientId: item.id,
-            disabled: item.enabled,
-            token,
-        }
-    }
-}
-
 export class ServerService {
-    private controlServer: ControlServer
+    private server: QuicServer | undefined = undefined
 
     constructor() {
-        this.controlServer = new ControlServer(createContext)
     }
 
     getConfig = async () => {
@@ -110,10 +84,14 @@ export class ServerService {
             if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) {
                 throw new ResultApiException({...INVALID_PORT})
             }
-            await this.controlServer.start({
+            this.server = new QuicServer({
                 hosts,
-                port: config.port,
-            })
+                port: config.port
+            }, new ConnectionDispatcher(
+                new ControlConnectionHandler(),
+                new DataConnectionHandler(),
+            ))
+            await this.server.start()
             StateSyncManager.getState().server.running = runState.running.value;
             StateSyncManager.getState().server.port = config.port;
             StateSyncManager.getState().server.hosts = hosts;
@@ -132,7 +110,7 @@ export class ServerService {
         const old = StateSyncManager.getState().server.running;
         StateSyncManager.getState().server.running = runState.stopping.value;
         try {
-            await this.controlServer.stop();
+            await this.server?.stop();
             resetState(StateSyncManager.getState())
         } catch (e) {
             StateSyncManager.getState().server.running = old;
@@ -165,14 +143,16 @@ export class ServerService {
     }
 
     disconnect = async (request: TokenRequest) => {
-        await this.controlServer.closeItem(request.token);
+        // await this.server?.closeItem(request.token);
+        request
     }
     findClientIdByToken = (token: any) => {
-        const item = this.controlServer.findByToken(token);
+        /*const item = this.server?.findByToken(token)?.peer;
         if (!item) {
             throw new ResultApiException(NOT_CONNECTED);
         }
-        return item.getContext().clientId;
+        return item.getContext().clientId;*/
+        return token.length;
     }
 }
 

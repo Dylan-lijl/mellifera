@@ -4,6 +4,6 @@ export interface RpcClientContext{
 }
 export interface RpcServerContext{
     clientId:number,
-    disabled:boolean,
+    enabled:boolean,
     token:string
 }

@@ -60,20 +60,33 @@ export class RpcPeer<TContext> {
                 reject(new RpcError(RpcErrorCode.Timeout, `RPC request timed out: ${method}`))
             }, timeoutMs)
 
-            this.pending.set(id, {resolve: value => resolve(value as T), reject, timer})
-            try {
-                this.send(message)
-            } catch (error) {
+            this.pending.set(id, {
+                resolve: value => resolve(value as T),
+                reject,
+                timer,
+            })
+            void this.send(message).catch(error => {
                 clearTimeout(timer)
                 this.pending.delete(id)
                 reject(asError(error))
-            }
+            })
         })
     }
 
-    notify(method: string, params?: unknown) {
-        if (this.closed || !this.transport.isOpen) throw new RpcError(RpcErrorCode.ConnectionClosed, 'RPC connection is not open')
-        this.send({jsonrpc: '2.0', method, ...(params === undefined ? {} : {params})})
+    notify(method: string, params?: unknown): Promise<void> {
+        if (this.closed || !this.transport.isOpen) {
+            return Promise.reject(
+                new RpcError(
+                    RpcErrorCode.ConnectionClosed,
+                    'RPC connection is not open',
+                ),
+            )
+        }
+        return this.send({
+            jsonrpc: '2.0',
+            method,
+            ...(params === undefined ? {} : { params }),
+        })
     }
 
     close() {
@@ -81,13 +94,13 @@ export class RpcPeer<TContext> {
         this.closed = true
         this.failAll(new RpcError(RpcErrorCode.ConnectionClosed, 'RPC peer closed'))
         for (const unsubscribe of this.unsubs) unsubscribe()
-        this.transport.close(1000, 'RPC peer closed')
+        this.transport.close()
     }
     public getContext(){
         return this.context
     }
-    private send(message: RpcMessage) {
-        this.transport.send(JSON.stringify(message))
+    private send(message: RpcMessage): Promise<void> {
+        return this.transport.send(JSON.stringify(message))
     }
 
     private async handleMessage(raw: string) {
@@ -119,13 +132,30 @@ export class RpcPeer<TContext> {
 
     private async handleRequest(request: RpcRequest) {
         try {
-            const result = await this.router.dispatch(request.method, request.params, this.context)
-            this.send({jsonrpc: '2.0', id: request.id, result})
+            const result = await this.router.dispatch(
+                request.method,
+                request.params,
+                this.context,
+            )
+
+            await this.send({
+                jsonrpc: '2.0',
+                id: request.id,
+                result,
+            })
         } catch (error) {
             const rpcError = error instanceof RpcError
                 ? error
-                : new RpcError(RpcErrorCode.InternalError, asError(error).message)
-            this.send({jsonrpc: '2.0', id: request.id, error: rpcError.toJSON()})
+                : new RpcError(
+                    RpcErrorCode.InternalError,
+                    asError(error).message,
+                )
+
+            await this.send({
+                jsonrpc: '2.0',
+                id: request.id,
+                error: rpcError.toJSON(),
+            })
         }
     }
 

@@ -40,6 +40,12 @@ export const transportProtocol = {
 } as const
 export const transportProtocolOptions = Object.values(transportProtocol);
 export type TransportProtocolType = typeof transportProtocolOptions[number]["value"];
+export const connectionType = {
+    controller: {label: '控制连接', value: 1, enabled: true},
+    data: {label: '数据连接', value: 2, enabled: true},
+} as const
+export const connectionTypeOptions = Object.values(connectionType);
+export type ConnectionTypeType = typeof connectionTypeOptions[number]["value"];
 //==================================================================
 export const updateLogs = [{
     createTime: new Date(1791710263046),

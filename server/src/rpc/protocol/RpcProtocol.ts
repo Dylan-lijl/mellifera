@@ -4,13 +4,13 @@ export interface RpcRequest {
   jsonrpc: '2.0'
   id: RpcId
   method: string
-  params?: unknown
+  params?: Record<string, any>
 }
 
 export interface RpcNotification {
   jsonrpc: '2.0'
   method: string
-  params?: unknown
+  params?: Record<string, any>
 }
 
 export interface RpcSuccessResponse {
@@ -24,7 +24,8 @@ export interface RpcFailureResponse {
   id: RpcId | null
   error: {
     code: number
-    message: string
+    message: string,
+    other?:string
     data?: unknown
   }
 }
