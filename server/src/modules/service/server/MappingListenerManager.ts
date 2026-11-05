@@ -239,7 +239,7 @@ export class MappingListenerManager {
     private toInfo(entry: MappingListenerEntry): MappingListenerInfo {
         return {
             id: entry.config.id,
-            clientId: entry.config.id,
+            clientId: entry.config.clientId,
             state: entry.state,
             actualPort: entry.actualPort,
         }

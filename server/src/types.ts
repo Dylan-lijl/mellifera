@@ -33,6 +33,7 @@ export interface MappingListenerConfig {
     listenPort: MappingModel['listenPort']
     targetHost: MappingModel['targetHost']
     targetPort: MappingModel['targetPort']
+    reliable: MappingModel['reliable']
     disabledPorts: MappingModel['disabledPorts']
     other: MappingModel['other']
 }
