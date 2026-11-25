@@ -9,7 +9,7 @@ import {
     type CreationOptional,
 } from 'sequelize'
 
-import type { MappingModel } from '@mellifera/common/entity'
+import type {MappingModel} from '@mellifera/common/entity'
 
 export class MappingEntity extends Model<
     InferAttributes<MappingEntity>,
@@ -23,6 +23,7 @@ export class MappingEntity extends Model<
     declare targetHost: MappingModel['targetHost']
     declare targetPort: MappingModel['targetPort']
     declare enabled: CreationOptional<MappingModel['enabled']>
+    declare reliable: CreationOptional<MappingModel['reliable']>
     declare description: MappingModel['description']
     declare disabledPorts: MappingModel['disabledPorts']
     declare other: CreationOptional<MappingModel['other']>
@@ -85,6 +86,10 @@ export function initDB(sequelize: Sequelize) {
             },
             createdAt: {
                 type: DataTypes.DATE,
+                allowNull: false,
+            },
+            reliable: {
+                type: DataTypes.BOOLEAN,
                 allowNull: false,
             },
             updatedAt: {

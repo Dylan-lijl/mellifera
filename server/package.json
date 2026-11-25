@@ -7,7 +7,8 @@
   "productName": "pub.carzy.mellifera",
   "scripts": {
     "start": "electron-vite dev",
-    "build": "electron-vite build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://repo.huaweicloud.com/electron-builder-binaries/ electron-builder"
+    "build": "electron-vite build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://repo.huaweicloud.com/electron-builder-binaries/ electron-builder",
+    "download": "npx electron --version"
   },
   "dependencies": {
     "@mellifera/common": "*",
@@ -25,6 +26,9 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@babel/core": "^8.1.3",
+    "@babel/plugin-proposal-decorators": "^8.0.2",
+    "@rolldown/plugin-babel": "^0.3.1",
     "@types/node": "^25.9.3",
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-vue": "^6.0.8",

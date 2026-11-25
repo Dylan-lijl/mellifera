@@ -3,9 +3,10 @@ import {type CreateMappingRequest, type TokenRequest, type UpdateMappingRequest}
 import ServerService from "@/modules/service/ServerService";
 import {MappingEntity} from "@/db/MappingEntity";
 import {ResultApiException} from "@mellifera/common/CustomException";
-import {ID_NOT_EXIST_EXCEPTION,ILLEGAL_ACCESS} from "@mellifera/common/ResultCode";
+import {ID_NOT_EXIST_EXCEPTION, ILLEGAL_ACCESS} from "@mellifera/common/ResultCode";
+import {defineController} from "@/utils/network";
 
-export class MappingController {
+export const MappingController = defineController("mapping", class MappingController {
     async add(request: Omit<CreateMappingRequest, "enabled" | "clientId"> & TokenRequest) {
         const clientId = ServerService.findClientIdByToken(request.token)
         return await MappingService.create({...request, enabled: true, clientId});
@@ -19,7 +20,7 @@ export class MappingController {
     async remove(request: { token: string; id: number }) {
         const clientId = ServerService.findClientIdByToken(request.token);
         const item = await MappingEntity.findByPk(request.id);
-        if(!item) {
+        if (!item) {
             throw new ResultApiException(ID_NOT_EXIST_EXCEPTION)
         }
         if (item.clientId !== clientId) {
@@ -28,10 +29,10 @@ export class MappingController {
         return await MappingService.delete({id: request.id})
     }
 
-    async update(request: { token: string, id: number }&UpdateMappingRequest) {
+    async update(request: { token: string, id: number } & UpdateMappingRequest) {
         const clientId = ServerService.findClientIdByToken(request.token);
         const item = await MappingEntity.findByPk(request.id);
-        if(!item) {
+        if (!item) {
             throw new ResultApiException(ID_NOT_EXIST_EXCEPTION)
         }
         if (item.clientId !== clientId) {
@@ -39,4 +40,4 @@ export class MappingController {
         }
         return await MappingService.update(request);
     }
-}
+});

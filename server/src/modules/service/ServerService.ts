@@ -13,21 +13,20 @@ import type {NetworkIpInfo} from "@mellifera/common/types";
 import * as os from "node:os";
 import {isIP} from "node:net";
 import type {StateData} from "@mellifera/common/stateSync";
-import {QuicServer} from "@/modules/service/server/QuicServer";
-import {ConnectionDispatcher} from "@/modules/service/server/ConnectionDispatcher";
-import {ControlConnectionHandler} from "@/modules/service/server/ControlConnectionHandler";
-import {DataConnectionHandler} from "@/modules/service/server/DataConnectionHandler";
+import {TcpAndUdpServerBootstrap} from "@/network/server/TcpAndUdpServerBootstrap";
+import commandControllers from './controllers/server/command'
+import dataControllers from './controllers/server/data'
 
 function resetState(state: StateData): void {
     state.server.running = runState.idle.value;
-    state.server.hosts = [];
+    state.server.host = null;
     state.server.port = null;
     state.server.error = null;
     state.server.connected = [];
 }
 
 export class ServerService {
-    private server: QuicServer | undefined = undefined
+    private server: TcpAndUdpServerBootstrap = null as unknown as TcpAndUdpServerBootstrap;
 
     constructor() {
     }
@@ -80,21 +79,18 @@ export class ServerService {
             if (!config) {
                 throw new ResultApiException({...DATA_NOT_FOUND_EXCEPTION, other: '服务配置不存在'})
             }
-            const hosts = this.getListenHosts(config);
+            const host = this.getListenHosts(config);
             if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) {
                 throw new ResultApiException({...INVALID_PORT})
             }
-            this.server = new QuicServer({
-                hosts,
-                port: config.port
-            }, new ConnectionDispatcher(
-                new ControlConnectionHandler(),
-                new DataConnectionHandler(),
-            ))
-            await this.server.start()
+            this.server = new TcpAndUdpServerBootstrap({
+                commandControllers,
+                dataControllers,
+            });
+            await this.server.listen(host, config.port);
             StateSyncManager.getState().server.running = runState.running.value;
             StateSyncManager.getState().server.port = config.port;
-            StateSyncManager.getState().server.hosts = hosts;
+            StateSyncManager.getState().server.host = host;
             StateSyncManager.getState().server.error = null;
         } catch (e) {
             resetState(StateSyncManager.getState());
@@ -110,7 +106,7 @@ export class ServerService {
         const old = StateSyncManager.getState().server.running;
         StateSyncManager.getState().server.running = runState.stopping.value;
         try {
-            await this.server?.stop();
+            await this.server?.close();
             resetState(StateSyncManager.getState())
         } catch (e) {
             StateSyncManager.getState().server.running = old;
@@ -122,21 +118,14 @@ export class ServerService {
     private getListenHosts = (config: ServerConfig) => {
         switch (config.mode) {
             case networkType.all.value:
-                return ['0.0.0.0', '::'];
+                return '::';
 
             case networkType.loopback.value:
-                return ['127.0.0.1', '::1'];
+                return '::1';
 
             case networkType.selected.value: {
-                const hosts: string[] = config.hosts?.filter(Boolean) ?? [];
-
-                if (hosts.length === 0) {
-                    throw new Error('请至少选择一个网卡地址');
-                }
-
-                return [...new Set(hosts)];
+                return config.host!;
             }
-
             default:
                 throw new Error(`不支持的监听模式：${config.mode}`);
         }

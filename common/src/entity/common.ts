@@ -58,12 +58,10 @@ export const ServerConfig = z.object({
             ...z.ZodLiteral<NetworkType>[]
         ]
     ),
-    hosts: z.array(z.string().trim().min(1))
-        .optional()
-        .nullable(),
+    host: z.string().trim().optional().nullable(),
     port: z.number().int().min(1).max(65535),
 }).superRefine((data, ctx) => {
-    if (data.mode === networkType.selected.value && !data.hosts?.length) {
+    if (data.mode === networkType.selected.value && !data.host?.length) {
         ctx.addIssue({
             code: 'custom',
             path: ['host'],

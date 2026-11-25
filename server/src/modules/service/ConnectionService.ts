@@ -15,36 +15,25 @@ import {
 } from "@mellifera/common/entity"
 import {ConnectionEntity, type ConnectionField} from '@/db/ConnectionEntity'
 import {ResultApiException} from "@mellifera/common/CustomException";
-import {ADD_DATA_EXCEPTION, ID_NOT_EXIST_EXCEPTION, UPDATE_DATA_EXCEPTION} from "@mellifera/common/ResultCode";
+import {
+    ADD_DATA_EXCEPTION,
+    ID_NOT_EXIST_EXCEPTION,
+    SYSTEM_ERROR,
+    UPDATE_DATA_EXCEPTION
+} from "@mellifera/common/ResultCode";
 import {Op, type WhereOptions,} from "sequelize";
 import type {PageData} from "@mellifera/common/Result";
 import StateSyncManager from "@/StateSyncManager";
 import {runState} from "@mellifera/common/constant";
 import {mapGetOrCreate} from "@mellifera/common/util";
 import {SELECTION_DISABELD} from "@mellifera/common/ResultCode";
-import {RpcPeer} from "@/rpc/peer/RpcPeer";
-import type {RpcClientContext} from "@/rpc/type";
-import {WebSocketTransport} from "@/rpc/transport/WebSocketTransport";
-import {RpcRouter} from "@/rpc/router/RpcRouter";
-import {WebSocket} from "ws";
-import {
-    createRemoteControllerProxy,
-    registerLocalControllers,
-    type RpcProxyFor
-} from "@/rpc/client/RpcClientFactory";
+import controllers from './controllers/client/command'
+import serverControllers from './controllers/server/command'
 import {NOT_CONNECTED} from "@mellifera/common/ResultCode";
 import type {MappingEntity} from "@/db/MappingEntity";
 import {ConnectionMappingEntity} from "@/db/ConnectionMappingEntity";
-
-type Context = {
-    client?: RpcPeer<RpcClientContext>,
-    connecting?: Promise<RpcClientContext>,
-    rpcClient?: RpcProxyFor<'client'>,
-};
-type ConnectedContext = {
-    client: NonNullable<Context['client']>;
-    rpcClient: NonNullable<Context['rpcClient']>;
-} & Omit<Context, 'client' | 'rpcClient'>;
+import {TcpAndUdpBootstrap} from "@/network/client/TcpAndUdpBootstrap";
+import {getOrCreateRpcProxy} from "@/network/RpcDispatcher";
 
 export class ConnectionService {
 
@@ -174,7 +163,7 @@ export class ConnectionService {
             // 如果需要自动连接，可在这里调用 this.connect(id)
         }
     }
-    connected = new Map<number, Context>()
+    connected = new Map<number, { boostrap: TcpAndUdpBootstrap, token: string }>()
 
     connect = async (request: FindByIdRequest) => {
         const {id} = FindByIdDefinition.parse(request)
@@ -185,11 +174,7 @@ export class ConnectionService {
         if (!connection.enabled) {
             throw new ResultApiException(SELECTION_DISABELD)
         }
-        const context = mapGetOrCreate(
-            this.connected,
-            id,
-            () => ({client: undefined, connecting: undefined, rpcClient: undefined}),
-        )
+        const context = this.connected.get(id);
         const details = StateSyncManager.getState().connection.details
         const runData = mapGetOrCreate(details, id, id => ({
             id,
@@ -198,44 +183,37 @@ export class ConnectionService {
             connected: new Map()
         }))
         // 已经建立 RPC 客户端，直接复用
-        if (context.client?.getTransPort()?.isOpen) {
+        if (context?.boostrap?.state?.cmdState) {
             return
         }
         // 正在创建 RPC 客户端，等待同一个任务
-        if (context.connecting) {
-            await context.connecting
+        if (context?.boostrap?.cmdStream?.socket?.connecting) {
+            const task = new Promise<void>(resolve => {
+                resolve()
+            });
+            context.boostrap.cmdStream.waitQueue.push(task);
+            await task;
             return
         }
         runData.running = runState.starting.value
         runData.error.message = null
-        const transport = new WebSocketTransport(
-            new WebSocket(`ws://${connection.host}:${connection.port}`, {
-                headers: {
-                    authorization: "Bearer " + connection.token!
-                }
-            })
-        )
-        const rpcContext: RpcClientContext = {id: id, token: connection.token};
-        const router = new RpcRouter<RpcClientContext>()
-        registerLocalControllers("client", router)
-        const client = new RpcPeer(transport, router, {context: rpcContext})
+        let bootstrap = new TcpAndUdpBootstrap({
+            //需要域名解析
+            host: connection.host,
+            port: connection.port,
+        });
+        mapGetOrCreate(this.connected, id, () => ({boostrap: bootstrap, token: connection.token}))
         try {
-            await client.getTransPort().connect()
-            const rpc = createRemoteControllerProxy("client", client);
-            client.getTransPort().onClose(() => {
-                if (context.client === client) {
-                    context.client = undefined
-                    runData.running = runState.idle.value
-                }
-            })
-            client.getTransPort().onError(error => {
-                runData.error.message = error.message
-            })
-            context.client = client
+            await bootstrap.connectCmd(controllers)
+            if (!bootstrap.cmdStream?.context) {
+                throw new ResultApiException(SYSTEM_ERROR)
+            }
+            const serverRpc = getOrCreateRpcProxy(serverControllers, bootstrap.cmdStream.context);
+            //发送验证信息
+            await serverRpc?.user?.auth({token: connection.token,type:1});
             runData.running = runState.running.value
-            context.rpcClient = rpc;
         } catch (error: any) {
-            transport.close()
+            await bootstrap.close()
             runData.error.message = error instanceof ResultApiException ? error.code.message : error.message ?? error + '';
             throw error
         }
@@ -251,44 +229,23 @@ export class ConnectionService {
         runData.error.message = null
         const context = this.connected.get(id);
         this.connected.delete(id);
-        if (!context?.client?.getContext()?.token) {
+        if (!context?.token) {
             return
         }
         try {
             //发送断开事件
             try {
-                await context?.rpcClient?.common?.disconnect({token: context.client.getContext().token})
+                if (context?.boostrap?.cmdStream?.context) {
+                    await getOrCreateRpcProxy(serverControllers, context.boostrap.cmdStream.context)?.common?.disconnect({token: context.token});
+                }
             } finally {
-                context?.client?.close()
+                await context?.boostrap?.close();
             }
         } catch (e: any) {
             runData.error.message = e instanceof ResultApiException ? e.code.message : e.message ?? e + ''
         } finally {
             runData.running = runState.idle.value;
         }
-    }
-
-    getConnectedContext(id: number, throwEx?: true): ConnectedContext;
-    getConnectedContext(id: number, throwEx: false): Context | undefined;
-    getConnectedContext(id: number, throwEx = true): Context | undefined {
-        const context = this.connected.get(id);
-
-        const clientContext = context?.client?.getContext();
-
-        if (
-            !context ||
-            !context.client?.getTransPort()?.isOpen ||
-            !context.rpcClient ||
-            !clientContext?.token
-        ) {
-            if (throwEx) {
-                throw new ResultApiException(NOT_CONNECTED);
-            }
-
-            return context;
-        }
-
-        return context as ConnectedContext;
     }
 
     /**
@@ -308,13 +265,8 @@ export class ConnectionService {
             })).map(item => item.toJSON<ConnectionMappingEntity>());
             const localEntities = await loadLocal();
             // 2. 检查连接状态
-            const context = this.getConnectedContext(connectionId, false);
-            if (
-                !context ||
-                !context.client?.getTransPort()?.isOpen ||
-                !context.rpcClient ||
-                !context.client.getContext()?.token
-            ) {
+            const context = this.connected.get(connectionId);
+            if (!context || !context.boostrap.state.cmdState || !context.boostrap.cmdStream) {
                 // 未连接时，直接返回本地数据
                 return localEntities as ListConnectionMappingResponse[];
             }
@@ -323,8 +275,8 @@ export class ConnectionService {
                 throw new ResultApiException(NOT_CONNECTED);
             }
             // 3. 获取服务端最新映射
-            const remoteEntities = await context.rpcClient.mapping.list({
-                token: context.client.getContext().token,
+            const remoteEntities = await getOrCreateRpcProxy(serverControllers, context.boostrap.cmdStream.context).mapping.list({
+                token: context.token,
             });
             // 4. 建立索引，方便比较
             const localMap = new Map(
@@ -399,12 +351,16 @@ export class ConnectionService {
         },
         add: async (request: CreateConnectionMappingRequest) => {
             const {config, connectionId, enabled, autoUpdate} = CreateConnectionMappingDefinition.parse(request);
-            const context = this.getConnectedContext(connectionId);
-            const id = await context.rpcClient.mapping.add({token: context.client.getContext().token, ...config});
+            const context = this.connected.get(connectionId);
+            if (!context || !context.boostrap?.state.cmdState||!context.boostrap.cmdStream?.context) {
+                throw new ResultApiException(ADD_DATA_EXCEPTION)
+            }
+            const rpc = getOrCreateRpcProxy(serverControllers,context.boostrap.cmdStream.context);
+            const id = await rpc.mapping.add({token: context.token, ...config});
             if (!id) {
                 throw new ResultApiException(ADD_DATA_EXCEPTION)
             }
-            const info = await context.rpcClient.mapping.list({token: context.client.getContext().token, id});
+            const info = await rpc.mapping.list({token: context.token, id});
             if (!info || !info.length) {
                 throw new ResultApiException(ADD_DATA_EXCEPTION);
             }
@@ -436,13 +392,17 @@ export class ConnectionService {
             const values: Partial<ConnectionMappingModel> = {};
             // 先修改服务端映射
             if (config) {
-                const context = this.getConnectedContext(entity.connectionId);
-                await context.rpcClient.mapping.update({
-                    token: context.client.getContext().token,
+                const context = this.connected.get(entity.connectionId);
+                if (!context || !context.boostrap?.state.cmdState||!context.boostrap.cmdStream?.context) {
+                    throw new ResultApiException(UPDATE_DATA_EXCEPTION)
+                }
+                const rpc = getOrCreateRpcProxy(serverControllers,context.boostrap.cmdStream.context);
+                await rpc.mapping.update({
+                    token: context.token,
                     ...config,
                 });
-                const info = await context.rpcClient.mapping.list({
-                    token: context.client.getContext().token,
+                const info = await rpc.mapping.list({
+                    token: context.token,
                     id: entity.remoteId,
                 });
                 if (!info?.length) {
@@ -476,10 +436,14 @@ export class ConnectionService {
             if (!entity) {
                 throw new ResultApiException(ID_NOT_EXIST_EXCEPTION);
             }
-            const context = this.getConnectedContext(entity.connectionId);
+            const context = this.connected.get(entity.connectionId);
+            if (!context || !context.boostrap?.state.cmdState||!context.boostrap.cmdStream?.context) {
+                throw new ResultApiException(UPDATE_DATA_EXCEPTION)
+            }
+            const rpc = getOrCreateRpcProxy(serverControllers,context.boostrap.cmdStream.context);
             // 先删除服务端映射
-            await context.rpcClient.mapping.remove({
-                token: context.client.getContext().token,
+            await rpc.mapping.remove({
+                token: context.token,
                 id: entity.remoteId,
             });
             await entity.destroy();

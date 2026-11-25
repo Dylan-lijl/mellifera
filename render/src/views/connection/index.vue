@@ -344,7 +344,7 @@ import {
   AddOutline,
   Refresh,
 } from '@vicons/ionicons5'
-import {EditFilled, DeleteFilled} from '@vicons/antd'
+import {EditFilled} from '@vicons/antd'
 import {createPagination} from "@mellifera/common/util";
 import type {
   SearchRequest,
@@ -359,7 +359,6 @@ import {formatDateTime, extractErrorMessage} from "@/util";
 import MappingDetail from "@/views/server/mappingDetail.vue";
 
 const dialog = useDialog()
-const message = useMessage()
 const store = useStore();
 const infoDesc = ref({
   title: "",

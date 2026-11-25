@@ -35,7 +35,7 @@ export function createSyncState(): StateData {
         server: {
             running: runState.idle.value,
             port: null,
-            hosts: [],
+            host: null,
             error: null,
             connected: []
         },

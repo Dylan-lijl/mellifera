@@ -12,7 +12,7 @@ export interface StateData {
     server: {
         running: RunStateType,
         port: number | null,
-        hosts: string[],
+        host: string|null,
         error: string | null,
         connected:number[],
     },

@@ -1,23 +1,19 @@
 import {defineConfig} from 'electron-vite'
 import {resolve} from 'path'
 import {loadEnv} from "vite";
-import { rpcControllerTypes } from './plugins/rpc-controller-types.mjs'
+import babel from '@rolldown/plugin-babel'
+
 const alias = {
     '@': resolve(__dirname, 'src'),
 }
 
 const outDir = resolve(__dirname, 'dist-electron')
-
 export default defineConfig(({mode}) => {
     Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
     return {
         main: {
-            plugins:[
-                rpcControllerTypes({
-                    clientDir: 'src/rpc/controllers/client',
-                    serverDir: 'src/rpc/controllers/server',
-                    output: 'src/rpc/rpc-controller-types.d.ts',
-                }),
+            plugins: [
+                babel({plugins: [['@babel/plugin-proposal-decorators', {version: '2023-11'}]]})
             ],
             electron: {
                 path: 'desktop/node_modules/electron'
