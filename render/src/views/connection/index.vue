@@ -596,6 +596,13 @@ async function handleDeleteMapping(row: ListConnectionMappingResponse) {
   }
   try {
     await store.service.connection.mapping.remove({id: row.id}).errorMessage(extractErrorMessage).get();
+    const dist = mappingMap.value.get(row.connectionId);
+    if (dist) {
+      const index = dist.findIndex(item => item.id === row.id)
+      if (index > -1) {
+        dist.splice(index, 1);
+      }
+    }
   } catch (error) {
 
   }

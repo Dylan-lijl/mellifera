@@ -1,5 +1,5 @@
 import {
-    type FindByIdRequest,
+    type ByIdRequest,
     type EnabledRequest,
     type InfoMappingResponse,
     type ListMappingResponse,
@@ -24,6 +24,16 @@ import type {PageData} from '@mellifera/common/Result'
 import {sequelize} from "@/appContext";
 import {escapeLike} from "@mellifera/common/util";
 
+function transform(model: any) {
+    if (model.enabled !== null && model.enabled !== undefined) {
+        model.enabled = !!model.enabled;
+    }
+    if (model.reliable !== null && model.reliable !== undefined) {
+        model.reliable = !!model.reliable;
+    }
+    return model;
+}
+
 export class MappingService {
     list = async (request: ListAllMappingRequest) => {
         const {id, clientId, enabled} =
@@ -36,9 +46,9 @@ export class MappingService {
             where.clientId = clientId;
         }
         if (enabled !== undefined && enabled !== null) {
-            where.enabled = enabled;
+            where.enabled = enabled ? 1 : 0;
         }
-        return MappingEntity.findAll({where});
+        return MappingEntity.findAll({where, raw: true}).then(r => r.map(transform));
     }
     /**
      * 查询映射列表。
@@ -109,9 +119,7 @@ export class MappingService {
                 type: QueryTypes.SELECT,
             }),
         ])
-        rows.forEach(row => {
-            row.enabled = !!row.enabled
-        })
+        rows.forEach(transform)
         return {
             list: rows,
             total: Number(countResult[0]?.total ?? 0),
@@ -124,7 +132,7 @@ export class MappingService {
     /**
      * 查询单个映射。
      */
-    getById = async (request: FindByIdRequest) => {
+    getById = async (request: ByIdRequest) => {
         const entity = await MappingEntity.findByPk(request.id)
 
         if (!entity) {

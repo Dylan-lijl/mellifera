@@ -1,41 +1,51 @@
 import MappingService from "@/modules/service/MappingService";
-import {type CreateMappingRequest, type TokenRequest, type UpdateMappingRequest} from "@mellifera/common/entity";
-import ServerService from "@/modules/service/ServerService";
+import {type CreateMappingRequest, type UpdateMappingRequest} from "@mellifera/common/entity";
 import {MappingEntity} from "@/db/MappingEntity";
 import {ResultApiException} from "@mellifera/common/CustomException";
 import {ID_NOT_EXIST_EXCEPTION, ILLEGAL_ACCESS} from "@mellifera/common/ResultCode";
-import {defineController} from "@/utils/network";
+import {checkContextAvailable, defineController, RpcMethod} from "@/utils/network";
+import type {ContextAware, NetworkServerContext} from "@/types/network";
 
-export const MappingController = defineController("mapping", class MappingController {
-    async add(request: Omit<CreateMappingRequest, "enabled" | "clientId"> & TokenRequest) {
-        const clientId = ServerService.findClientIdByToken(request.token)
-        return await MappingService.create({...request, enabled: true, clientId});
+export const MappingController = defineController("mapping", class MappingController implements ContextAware<NetworkServerContext> {
+    context = null as unknown as NetworkServerContext;
+
+    setContext(context: NetworkServerContext) {
+        this.context = context;
     }
 
-    async list(request: { token: string, id?: number | null | undefined }) {
-        const clientId = ServerService.findClientIdByToken(request.token);
-        return await MappingService.list({clientId, id: request.id})
+    @RpcMethod()
+    async add(request: Omit<CreateMappingRequest, "enabled" | "clientId">) {
+        checkContextAvailable(this.context);
+        return await MappingService.create({...request, enabled: true, clientId: this.context.variable!.id});
     }
 
-    async remove(request: { token: string; id: number }) {
-        const clientId = ServerService.findClientIdByToken(request.token);
+    @RpcMethod()
+    async list(request: { id?: number | null | undefined }) {
+        checkContextAvailable(this.context);
+        return await MappingService.list({clientId: this.context.variable!.id, id: request.id});
+    }
+
+    @RpcMethod()
+    async remove(request: { id: number }) {
+        checkContextAvailable(this.context);
         const item = await MappingEntity.findByPk(request.id);
         if (!item) {
             throw new ResultApiException(ID_NOT_EXIST_EXCEPTION)
         }
-        if (item.clientId !== clientId) {
+        if (item.clientId !== this.context.variable!.id) {
             throw new ResultApiException(ILLEGAL_ACCESS)
         }
         return await MappingService.delete({id: request.id})
     }
 
-    async update(request: { token: string, id: number } & UpdateMappingRequest) {
-        const clientId = ServerService.findClientIdByToken(request.token);
+    @RpcMethod()
+    async update(request: { id: number } & UpdateMappingRequest) {
+        checkContextAvailable(this.context);
         const item = await MappingEntity.findByPk(request.id);
         if (!item) {
             throw new ResultApiException(ID_NOT_EXIST_EXCEPTION)
         }
-        if (item.clientId !== clientId) {
+        if (item.clientId !== this.context.variable!.id) {
             throw new ResultApiException(ILLEGAL_ACCESS)
         }
         return await MappingService.update(request);

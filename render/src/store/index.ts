@@ -275,7 +275,7 @@ export function applyStatePatch(
     if (current instanceof Map) {
         if (op === 'delete') {
             current.delete(key);
-        } else if (patch.value){
+        } else if (patch.value) {
             current.set(key, patch.value);
         }
 
@@ -283,9 +283,15 @@ export function applyStatePatch(
     }
 
     if (op === 'delete') {
-        if (Array.isArray(current) && typeof key === 'number') {
-            if (Number.isInteger(key) && key >= 0 && key < current.length) {
-                current.splice(key, 1);
+        if (Array.isArray(current)) {
+            const index = typeof key === 'number'
+                ? key
+                : typeof key === 'string' && /^\d+$/.test(key)
+                    ? Number(key)
+                    : -1;
+
+            if (Number.isInteger(index) && index >= 0 && index < current.length) {
+                current.splice(index, 1);
             }
         } else {
             delete current[key];
@@ -293,7 +299,7 @@ export function applyStatePatch(
 
         return;
     }
-    if(patch.value){
+    if (patch.value) {
         current[key] = patch.value;
     }
 }

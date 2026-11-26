@@ -15,6 +15,7 @@ import dgram, {
 
 type RuntimeData = {
     id: number;
+    clientId: number;
     server: Server | DatagramSocket;
 };
 
@@ -27,6 +28,7 @@ type ListenerConfig = {
     port: number;
     type: TransportProtocolType;
     id: number;
+    clientId: number;
     skipPorts?: string | null;
 };
 
@@ -325,6 +327,7 @@ export default {
 
                 return {
                     id: item.id,
+                    clientId: item.clientId,
                     server,
                 };
 
@@ -386,6 +389,7 @@ export default {
 
                 return {
                     id: item.id,
+                    clientId: item.clientId,
                     server: socket,
                 };
 

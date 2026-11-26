@@ -30,7 +30,7 @@ export async function initDatabase(): Promise<void> {
     await initializer.initDB(sequelize)
   }
   await sequelize.authenticate()
-  await sequelize.sync({alter:true})
+  // await sequelize.sync({alter:true})
   const tables = await sequelize.getQueryInterface().showAllTables()
   console.log('[Database] 实际存在的表：', tables)
 }

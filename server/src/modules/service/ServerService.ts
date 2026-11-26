@@ -1,8 +1,9 @@
 import {getData, saveData} from "@/utils/Store";
 import StateSyncManager from "@/StateSyncManager";
-import {type ServerConfig, type TokenRequest} from "@mellifera/common/entity";
+import {type ByIdRequest, type ServerConfig} from "@mellifera/common/entity";
 import {networkType, runState} from "@mellifera/common/constant";
 import {ResultApiException} from "@mellifera/common/CustomException";
+import manager from "@/network/GlobalNetworkManager";
 import {
     FAILED_TO_START,
     FAILED_TO_STOP,
@@ -15,14 +16,18 @@ import {isIP} from "node:net";
 import type {StateData} from "@mellifera/common/stateSync";
 import {TcpAndUdpServerBootstrap} from "@/network/server/TcpAndUdpServerBootstrap";
 import commandControllers from './controllers/server/command'
+import clientCommandControllers from './controllers/client/command'
 import dataControllers from './controllers/server/data'
+import {getOrCreateRpcProxy} from "@/network/RpcDispatcher";
+import mapPortServiceManager from "@/network/MapPortServiceManager";
+import {logger} from "@/utils";
 
 function resetState(state: StateData): void {
     state.server.running = runState.idle.value;
     state.server.host = null;
     state.server.port = null;
     state.server.error = null;
-    state.server.connected = [];
+    state.server.connected.clear();
 }
 
 export class ServerService {
@@ -98,22 +103,121 @@ export class ServerService {
             throw new ResultApiException({...FAILED_TO_START, other: StateSyncManager.getState().server.error});
         }
     }
+    private stopPromise?: Promise<void>;
 
-    stop = async () => {
-        if (StateSyncManager.getState().server.running !== runState.running.value) {
-            return
+    stop = async (): Promise<void> => {
+        // 防止并发停止
+        if (this.stopPromise) {
+            return this.stopPromise;
         }
-        const old = StateSyncManager.getState().server.running;
-        StateSyncManager.getState().server.running = runState.stopping.value;
+        const state = StateSyncManager.getState().server;
+
+        // 只有 running 状态允许停止
+        if (state.running !== runState.running.value) {
+            return;
+        }
+
+        this.stopPromise = this.doStop();
+
         try {
-            await this.server?.close();
-            resetState(StateSyncManager.getState())
-        } catch (e) {
-            StateSyncManager.getState().server.running = old;
-            StateSyncManager.getState().server.error = e instanceof Error ? e.message : e + "";
-            throw new ResultApiException({...FAILED_TO_STOP, other: StateSyncManager.getState().server.error});
+            await this.stopPromise;
+        } finally {
+            this.stopPromise = undefined;
         }
-    }
+    };
+
+    private async doStop(): Promise<void> {
+        const serverState = StateSyncManager.getState().server;
+
+        serverState.running = runState.stopping.value;
+        serverState.error = null;
+
+        const errors: string[] = [];
+
+        // 统一捕获单项清理异常
+        const execute = async (
+            name: string,
+            action: () => Promise<unknown> | unknown,
+        ) => {
+            try {
+                await action();
+            } catch (error) {
+                const message = error instanceof Error
+                    ? error.message
+                    : String(error);
+
+                errors.push(`${name}: ${message}`);
+                logger.error(`[Server Stop] ${name}失败:`, error);
+            }
+        };
+
+        try {
+            // 1. 获取连接快照，避免遍历期间 Map 被修改
+            const commands = [...manager.commandMap.values()];
+
+            // 2. 通知所有客户端
+            await Promise.all(
+                commands.map(command =>
+                    execute(
+                        `通知客户端 ${command.variable?.id}`,
+                        async () => {
+                            await getOrCreateRpcProxy(
+                                clientCommandControllers,
+                                command,
+                            )?.connection?.disconnect();
+                        },
+                    ),
+                ),
+            );
+
+            // 3. 清理所有客户端连接
+            await Promise.all(
+                commands.map(command =>
+                    execute(
+                        `断开客户端 ${command.variable?.id}`,
+                        () => manager.disconnectCommand(command),
+                    ),
+                ),
+            );
+
+            // 4. 关闭网络服务
+            await execute(
+                '关闭网络服务',
+                async () => {
+                    await this.server?.close();
+                },
+            );
+
+            // 5. 关闭所有端口映射
+            await execute(
+                '关闭端口映射',
+                async () => {
+                    await mapPortServiceManager.closeAll();
+                },
+            );
+
+            // 6. 判断是否全部成功
+            if (errors.length > 0) {
+                throw new Error(errors.join('\n'));
+            }
+
+            // 7. 全部成功后重置状态
+            resetState(StateSyncManager.getState());
+
+        } catch (error) {
+            const message = error instanceof Error
+                ? error.message
+                : String(error);
+
+            serverState.running = runState.idle.value;
+            serverState.error = message;
+
+            throw new ResultApiException({
+                ...FAILED_TO_STOP,
+                other: message,
+            });
+        }
+    };
 
     private getListenHosts = (config: ServerConfig) => {
         switch (config.mode) {
@@ -131,9 +235,16 @@ export class ServerService {
         }
     }
 
-    disconnect = async (request: TokenRequest) => {
-        // await this.server?.closeItem(request.token);
-        request
+    disconnect = async (request: ByIdRequest) => {
+        const item = manager.commandMap.get(request.id);
+        if (!item) {
+            return
+        }
+        try {
+            await getOrCreateRpcProxy(clientCommandControllers, item).connection.disconnect()
+        } finally {
+            await manager.disconnectCommand(item);
+        }
     }
     findClientIdByToken = (token: any) => {
         /*const item = this.server?.findByToken(token)?.peer;

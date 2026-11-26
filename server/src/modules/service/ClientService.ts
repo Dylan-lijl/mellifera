@@ -1,5 +1,5 @@
 import {
-    type FindByIdRequest,
+    type ByIdRequest,
     type EnabledRequest,
     type InfoClientResponse,
     type ListClientResponse,
@@ -62,7 +62,7 @@ export class ClientService {
     /**
      * 查询单个连接配置。
      */
-    getById = async (request: FindByIdRequest)=>{
+    getById = async (request: ByIdRequest)=>{
         const entity = await ClientEntity.findByPk(request.id)
         if (!entity) {
             throw new ResultApiException(ID_NOT_EXIST_EXCEPTION)

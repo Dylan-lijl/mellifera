@@ -1,17 +1,16 @@
 import {
-    type FindByIdRequest,
     type EnabledRequest,
     type InfoConnectionResponse,
     type ListConnectionResponse,
     type CreateConnectionRequest,
     CreateConnectionDefinition,
     type UpdateConnectionRequest, UpdateConnectionDefinition, EnabledDefinition,
-    SearchAndPageDefinition, type SearchAndPageRequest, type DeleteByIdRequest, FindByIdDefinition,
+    SearchAndPageDefinition, type SearchAndPageRequest, type DeleteByIdRequest, ByIdDefinition,
     type CreateConnectionMappingRequest,
     type UpdateConnectionMappingRequest, DeleteByIdDefinition, type ConnectionMappingModel,
     CreateConnectionMappingDefinition,
     UpdateConnectionMappingDefinition, type ListConnectionMappingResponse, type ListConnectionMappingRequest,
-    ListConnectionMappingRequestDefinition
+    ListConnectionMappingRequestDefinition, type ByIdRequest
 } from "@mellifera/common/entity"
 import {ConnectionEntity, type ConnectionField} from '@/db/ConnectionEntity'
 import {ResultApiException} from "@mellifera/common/CustomException";
@@ -34,6 +33,7 @@ import type {MappingEntity} from "@/db/MappingEntity";
 import {ConnectionMappingEntity} from "@/db/ConnectionMappingEntity";
 import {TcpAndUdpBootstrap} from "@/network/client/TcpAndUdpBootstrap";
 import {getOrCreateRpcProxy} from "@/network/RpcDispatcher";
+import other from "@/network/Other";
 
 export class ConnectionService {
 
@@ -82,7 +82,7 @@ export class ConnectionService {
     /**
      * 查询单个连接配置。
      */
-    getById = async (request: FindByIdRequest) => {
+    getById = async (request: ByIdRequest) => {
         const entity = await ConnectionEntity.findByPk(request.id)
         if (!entity) {
             throw new ResultApiException(ID_NOT_EXIST_EXCEPTION)
@@ -163,10 +163,8 @@ export class ConnectionService {
             // 如果需要自动连接，可在这里调用 this.connect(id)
         }
     }
-    connected = new Map<number, { boostrap: TcpAndUdpBootstrap, token: string }>()
-
-    connect = async (request: FindByIdRequest) => {
-        const {id} = FindByIdDefinition.parse(request)
+    connect = async (request: ByIdRequest) => {
+        const {id} = ByIdDefinition.parse(request)
         const connection = await ConnectionEntity.findByPk(id)
         if (!connection) {
             throw new ResultApiException(ID_NOT_EXIST_EXCEPTION)
@@ -174,7 +172,7 @@ export class ConnectionService {
         if (!connection.enabled) {
             throw new ResultApiException(SELECTION_DISABELD)
         }
-        const context = this.connected.get(id);
+        const context = other.connected.get(id);
         const details = StateSyncManager.getState().connection.details
         const runData = mapGetOrCreate(details, id, id => ({
             id,
@@ -183,15 +181,15 @@ export class ConnectionService {
             connected: new Map()
         }))
         // 已经建立 RPC 客户端，直接复用
-        if (context?.boostrap?.state?.cmdState) {
+        if (context?.bootstrap?.state?.cmdState) {
             return
         }
         // 正在创建 RPC 客户端，等待同一个任务
-        if (context?.boostrap?.cmdStream?.socket?.connecting) {
+        if (context?.bootstrap?.cmdStream?.socket?.connecting) {
             const task = new Promise<void>(resolve => {
                 resolve()
             });
-            context.boostrap.cmdStream.waitQueue.push(task);
+            context.bootstrap.cmdStream.waitQueue.push(task);
             await task;
             return
         }
@@ -202,7 +200,7 @@ export class ConnectionService {
             host: connection.host,
             port: connection.port,
         });
-        mapGetOrCreate(this.connected, id, () => ({boostrap: bootstrap, token: connection.token}))
+        mapGetOrCreate(other.connected, id, () => ({bootstrap: bootstrap, token: connection.token,id}))
         try {
             await bootstrap.connectCmd(controllers)
             if (!bootstrap.cmdStream?.context) {
@@ -210,7 +208,10 @@ export class ConnectionService {
             }
             const serverRpc = getOrCreateRpcProxy(serverControllers, bootstrap.cmdStream.context);
             //发送验证信息
-            await serverRpc?.user?.auth({token: connection.token,type:1});
+            await serverRpc?.user?.auth({token: connection.token, type: 1});
+            //绑定
+            bootstrap.cmdStream.context.variable = {token:connection.token,id}
+            bootstrap.cmdStream.context.available = true;
             runData.running = runState.running.value
         } catch (error: any) {
             await bootstrap.close()
@@ -219,32 +220,20 @@ export class ConnectionService {
         }
     }
 
-    disconnect = async (request: FindByIdRequest) => {
-        const {id} = FindByIdDefinition.parse(request);
-        const runData = StateSyncManager.getState().connection.details.get(id);
-        if (!runData) {
-            return
-        }
-        runData.running = runState.stopping.value;
-        runData.error.message = null
-        const context = this.connected.get(id);
-        this.connected.delete(id);
-        if (!context?.token) {
-            return
-        }
+    disconnect = async (request: ByIdRequest) => {
+        const { id } = ByIdDefinition.parse(request);
+        const context = other.connected.get(id);
         try {
-            //发送断开事件
-            try {
-                if (context?.boostrap?.cmdStream?.context) {
-                    await getOrCreateRpcProxy(serverControllers, context.boostrap.cmdStream.context)?.common?.disconnect({token: context.token});
-                }
-            } finally {
-                await context?.boostrap?.close();
+            // 先通知服务器
+            if (context?.bootstrap?.cmdStream?.context) {
+                await getOrCreateRpcProxy(
+                    serverControllers,
+                    context.bootstrap.cmdStream.context
+                )?.common?.disconnect({});
             }
-        } catch (e: any) {
-            runData.error.message = e instanceof ResultApiException ? e.code.message : e.message ?? e + ''
         } finally {
-            runData.running = runState.idle.value;
+            // 本地统一清理
+            await other.disconnectConnection(id);
         }
     }
 
@@ -253,7 +242,7 @@ export class ConnectionService {
      */
     mapping = {
         load: async (request: ListConnectionMappingRequest) => {
-            const {id, connectionId} = ListConnectionMappingRequestDefinition.parse(request);
+            const {id, connectionId, noUpdate} = ListConnectionMappingRequestDefinition.parse(request);
             // 1. 先查询本地数据
             const where: Partial<ConnectionMappingEntity> = {connectionId};
             if (id) {
@@ -263,87 +252,87 @@ export class ConnectionService {
                 where,
                 order: [['updatedAt', 'DESC']],
             })).map(item => item.toJSON<ConnectionMappingEntity>());
-            const localEntities = await loadLocal();
-            // 2. 检查连接状态
-            const context = this.connected.get(connectionId);
-            if (!context || !context.boostrap.state.cmdState || !context.boostrap.cmdStream) {
-                // 未连接时，直接返回本地数据
-                return localEntities as ListConnectionMappingResponse[];
-            }
-            const connectionEntity = await ConnectionEntity.findByPk(connectionId);
-            if (!connectionEntity) {
-                throw new ResultApiException(NOT_CONNECTED);
-            }
-            // 3. 获取服务端最新映射
-            const remoteEntities = await getOrCreateRpcProxy(serverControllers, context.boostrap.cmdStream.context).mapping.list({
-                token: context.token,
-            });
-            // 4. 建立索引，方便比较
-            const localMap = new Map(
-                localEntities.map(entity => [entity.remoteId, entity]),
-            );
-            const remoteMap = new Map(
-                remoteEntities.map(entity => [entity.id, entity]),
-            );
-            // 5. 对比增删改
-            // 5.1 服务端有、本地没有：新增本地关联
-            for (const remote of remoteEntities) {
-                if (localMap.has(remote.id)) {
-                    continue;
+            if (!noUpdate) {
+                const localEntities = await loadLocal();
+                // 2. 检查连接状态
+                const context = other.connected.get(connectionId);
+                if (!context || !context.bootstrap.state.cmdState || !context.bootstrap.cmdStream) {
+                    // 未连接时，直接返回本地数据
+                    return localEntities as ListConnectionMappingResponse[];
                 }
-                await this.mapping.doAdd({
-                    connectionId,
-                    remoteId: remote.id,
-                    config: remote,
-                    enabled: !!connectionEntity.autoUpdate,
-                    autoUpdate: !!connectionEntity.autoUpdate,
-                });
-            }
-            // 5.2 本地有、服务端没有：断开连接并删除本地关联
-            for (const local of localEntities) {
-                if (remoteMap.has(local.remoteId)) {
-                    continue;
+                const connectionEntity = await ConnectionEntity.findByPk(connectionId);
+                if (!connectionEntity) {
+                    throw new ResultApiException(NOT_CONNECTED);
                 }
-                await this.mapping.disconnect({id: local.id});
-                //将字段更新成已删除状态
-                await ConnectionMappingEntity.update(
-                    {remoteRemove: true},
-                    {
-                        where: {id: local.id},
-                    },
+                // 3. 获取服务端最新映射
+                const remoteEntities = await getOrCreateRpcProxy(serverControllers, context.bootstrap.cmdStream.context).mapping.list({});
+                // 4. 建立索引，方便比较
+                const localMap = new Map(
+                    localEntities.map(entity => [entity.remoteId, entity]),
                 );
-            }
-            // 5.3 两端都有、配置不同：根据 autoUpdate 决定是否应用
-            for (const remote of remoteEntities) {
-                const local = localMap.get(remote.id);
-                if (!local) {
-                    continue;
+                const remoteMap = new Map(
+                    remoteEntities.map(entity => [entity.id, entity]),
+                );
+                // 5. 对比增删改
+                // 5.1 服务端有、本地没有：新增本地关联
+                for (const remote of remoteEntities) {
+                    if (localMap.has(remote.id)) {
+                        continue;
+                    }
+                    await this.mapping.doAdd({
+                        connectionId,
+                        remoteId: remote.id,
+                        config: remote,
+                        enabled: !!connectionEntity.autoUpdate,
+                        autoUpdate: !!connectionEntity.autoUpdate,
+                    });
                 }
-                const applied = local.appliedConfig!;
-                // 判断是否影响实际映射连接
-                const configChanged =
-                    applied.protocol !== remote.protocol ||
-                    applied.targetHost !== remote.targetHost ||
-                    applied.targetPort !== remote.targetPort ||
-                    applied.other !== remote.other;
-                // 无论是否影响连接，都需要同步远程配置快照
-                const values: Partial<ConnectionMappingModel> = {
-                    remoteConfig: remote,
-                };
-                if (local.autoUpdate) {
-                    // 自动更新：接受服务端最新配置
-                    values.appliedConfig = remote;
-                } else if (configChanged) {
-                    // 手动更新：配置发生变化时禁用映射，等待用户确认
-                    values.enabled = false;
-                }
-                if (configChanged) {
-                    // 配置影响实际连接，先断开旧连接
+                // 5.2 本地有、服务端没有：断开连接并删除本地关联
+                for (const local of localEntities) {
+                    if (remoteMap.has(local.remoteId)) {
+                        continue;
+                    }
                     await this.mapping.disconnect({id: local.id});
+                    //将字段更新成已删除状态
+                    await ConnectionMappingEntity.update(
+                        {remoteRemove: true},
+                        {
+                            where: {id: local.id},
+                        },
+                    );
                 }
-                await ConnectionMappingEntity.update(values, {
-                    where: {id: local.id},
-                });
+                // 5.3 两端都有、配置不同：根据 autoUpdate 决定是否应用
+                for (const remote of remoteEntities) {
+                    const local = localMap.get(remote.id);
+                    if (!local) {
+                        continue;
+                    }
+                    const applied = local.appliedConfig!;
+                    // 判断是否影响实际映射连接
+                    const configChanged =
+                        applied.protocol !== remote.protocol ||
+                        applied.targetHost !== remote.targetHost ||
+                        applied.targetPort !== remote.targetPort ||
+                        applied.other !== remote.other;
+                    // 无论是否影响连接，都需要同步远程配置快照
+                    const values: Partial<ConnectionMappingModel> = {
+                        remoteConfig: remote,
+                    };
+                    if (local.autoUpdate) {
+                        // 自动更新：接受服务端最新配置
+                        values.appliedConfig = remote;
+                    } else if (configChanged) {
+                        // 手动更新：配置发生变化时禁用映射，等待用户确认
+                        values.enabled = false;
+                    }
+                    if (configChanged) {
+                        // 配置影响实际连接，先断开旧连接
+                        await this.mapping.disconnect({id: local.id});
+                    }
+                    await ConnectionMappingEntity.update(values, {
+                        where: {id: local.id},
+                    });
+                }
             }
             // 6. 返回同步后的本地数据
             const r = await loadLocal();
@@ -351,16 +340,16 @@ export class ConnectionService {
         },
         add: async (request: CreateConnectionMappingRequest) => {
             const {config, connectionId, enabled, autoUpdate} = CreateConnectionMappingDefinition.parse(request);
-            const context = this.connected.get(connectionId);
-            if (!context || !context.boostrap?.state.cmdState||!context.boostrap.cmdStream?.context) {
+            const context = other.connected.get(connectionId);
+            if (!context || !context.bootstrap?.state.cmdState || !context.bootstrap.cmdStream?.context) {
                 throw new ResultApiException(ADD_DATA_EXCEPTION)
             }
-            const rpc = getOrCreateRpcProxy(serverControllers,context.boostrap.cmdStream.context);
-            const id = await rpc.mapping.add({token: context.token, ...config});
+            const rpc = getOrCreateRpcProxy(serverControllers, context.bootstrap.cmdStream.context);
+            const id = await rpc.mapping.add({...config});
             if (!id) {
                 throw new ResultApiException(ADD_DATA_EXCEPTION)
             }
-            const info = await rpc.mapping.list({token: context.token, id});
+            const info = await rpc.mapping.list({id});
             if (!info || !info.length) {
                 throw new ResultApiException(ADD_DATA_EXCEPTION);
             }
@@ -392,17 +381,15 @@ export class ConnectionService {
             const values: Partial<ConnectionMappingModel> = {};
             // 先修改服务端映射
             if (config) {
-                const context = this.connected.get(entity.connectionId);
-                if (!context || !context.boostrap?.state.cmdState||!context.boostrap.cmdStream?.context) {
+                const context = other.connected.get(entity.connectionId);
+                if (!context || !context.bootstrap?.state.cmdState || !context.bootstrap.cmdStream?.context) {
                     throw new ResultApiException(UPDATE_DATA_EXCEPTION)
                 }
-                const rpc = getOrCreateRpcProxy(serverControllers,context.boostrap.cmdStream.context);
+                const rpc = getOrCreateRpcProxy(serverControllers, context.bootstrap.cmdStream.context);
                 await rpc.mapping.update({
-                    token: context.token,
                     ...config,
                 });
                 const info = await rpc.mapping.list({
-                    token: context.token,
                     id: entity.remoteId,
                 });
                 if (!info?.length) {
@@ -425,8 +412,8 @@ export class ConnectionService {
             }
             return entity.id as number;
         },
-        disconnect: async (request: FindByIdRequest) => {
-            const {id} = FindByIdDefinition.parse(request);
+        disconnect: async (request: ByIdRequest) => {
+            const {id} = ByIdDefinition.parse(request);
             //todo 如果连接存在则断开
             id
         },
@@ -436,14 +423,13 @@ export class ConnectionService {
             if (!entity) {
                 throw new ResultApiException(ID_NOT_EXIST_EXCEPTION);
             }
-            const context = this.connected.get(entity.connectionId);
-            if (!context || !context.boostrap?.state.cmdState||!context.boostrap.cmdStream?.context) {
+            const context = other.connected.get(entity.connectionId);
+            if (!context || !context.bootstrap?.state.cmdState || !context.bootstrap.cmdStream?.context) {
                 throw new ResultApiException(UPDATE_DATA_EXCEPTION)
             }
-            const rpc = getOrCreateRpcProxy(serverControllers,context.boostrap.cmdStream.context);
+            const rpc = getOrCreateRpcProxy(serverControllers, context.bootstrap.cmdStream.context);
             // 先删除服务端映射
             await rpc.mapping.remove({
-                token: context.token,
                 id: entity.remoteId,
             });
             await entity.destroy();

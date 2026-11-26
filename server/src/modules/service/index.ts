@@ -45,5 +45,6 @@ export default defineApiHandler(ServiceApiDefinition, {
         getNetworkIpInfos: ServerService.getNetworkIpInfos,
         start: ServerService.start,
         stop: ServerService.stop,
+        disconnect: ServerService.disconnect,
     }
 })

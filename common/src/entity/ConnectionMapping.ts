@@ -87,6 +87,7 @@ export const ListConnectionMappingRequestDefinition =
         enabled: z.boolean().nullish(),
         connectionId: ConnectionMappingDefinition.shape.connectionId,
         id: ConnectionMappingDefinition.shape.id.nullish(),
+        noUpdate: z.boolean().nullish(),
     }).omit({
         pageNum: true,
         pageSize: true,

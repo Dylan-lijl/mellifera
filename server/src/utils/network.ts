@@ -1,5 +1,7 @@
 import type {ContextAware, NetworkContext} from "@/types/network";
 import type {Constructor} from "@/network/client/TcpAndUdpBootstrap";
+import {ResultApiException} from "@mellifera/common/CustomException";
+import {AUTHENTICATION_FAILED} from "@mellifera/common/ResultCode";
 
 
 export interface RpcMethodDefinition {
@@ -61,7 +63,7 @@ export function encodeFrame(frame: ProtocolFrame): Buffer {
     payload.copy(buf, 18 + path.length)
 
     // 校验覆盖 version 到帧末尾
-    const checksum = crc16Ccitt(buf,  totalLength)
+    const checksum = crc16Ccitt(buf, totalLength)
     buf.writeUInt16BE(checksum, 14)
 
     return buf
@@ -280,6 +282,7 @@ const rpcMetadata = new WeakMap<
     Map<string, RpcMethodMetadata>
 >()
 let passed = false;
+
 /**
  * RpcMethod 装饰器
  *
@@ -323,7 +326,7 @@ export function RpcMethod(options: RpcMethodOptions = {}) {
                 rpcMetadata.set(prototype, methods);
             }
 
-            if (!passed&&methods.has(context.name as string)) {
+            if (!passed && methods.has(context.name as string)) {
                 throw new Error(
                     `Duplicate RPC metadata: ${String(context.name)}`
                 );
@@ -647,3 +650,9 @@ function decodeNode(
     }
 }
 
+export function checkContextAvailable(context: NetworkContext, exp = true) {
+    if (!context.available && exp) {
+        throw new ResultApiException(AUTHENTICATION_FAILED)
+    }
+    return context.available
+}

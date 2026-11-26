@@ -399,7 +399,6 @@ export class TcpAndUdpServerBootstrap {
             available: false
         }
         registerControllers(this.options.dataControllers, context);
-        context.available = true
         socket.on('message', (message, remoteInfo) => {
             void this.handleUdpMessage(
                 context.dispatcher,
@@ -559,7 +558,13 @@ export class TcpAndUdpServerBootstrap {
             }
             server.close(() => {
                 resolve()
-            })
+            });
+            // 主动关闭已有客户端连接
+            for (const socket of this.clients) {
+                if (!socket.destroyed) {
+                    socket.destroy();
+                }
+            }
         })
     }
 

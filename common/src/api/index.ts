@@ -9,7 +9,7 @@ import {
     ConnectionMappingModel,
     CreateClientRequest, CreateConnectionMappingRequest,
     CreateConnectionRequest, CreateMappingRequest, DeleteByIdRequest, EnabledRequest,
-    FindByIdRequest, InfoClientResponse,
+    ByIdRequest, InfoClientResponse,
     InfoConnectionResponse, InfoMappingResponse, type ListClientRequest, ListClientResponse,
     ListConnectionMappingRequest,
     ListConnectionMappingResponse,
@@ -44,12 +44,12 @@ export const ConnectionMappingApiDefinition = {
     load: method<(request: ListConnectionMappingRequest) => Promise<ListConnectionMappingResponse[]>>({wrappers: commonWrapper}),
     add: method<(request: CreateConnectionMappingRequest) => Promise<number>>({wrappers: commonWrapper}),
     update: method<(request: UpdateConnectionMappingRequest) => Promise<number>>({wrappers: commonWrapper}),
-    disconnect: method<(request: FindByIdRequest) => Promise<void>>({wrappers: commonWrapper}),
+    disconnect: method<(request: ByIdRequest) => Promise<void>>({wrappers: commonWrapper}),
     remove: method<(request: DeleteByIdRequest) => Promise<boolean>>({wrappers: commonWrapper}),
 }
 export const ConnectionApiDefinition = {
     searchAndPage: method<(request: SearchAndPageRequest) => Promise<PageData<ListConnectionResponse>>>({wrappers: commonWrapper}),
-    getById: method<(request: FindByIdRequest) => Promise<InfoConnectionResponse>>({wrappers: commonWrapper}),
+    getById: method<(request: ByIdRequest) => Promise<InfoConnectionResponse>>({wrappers: commonWrapper}),
     create: method<(request: CreateConnectionRequest) => Promise<number>>({wrappers: commonWrapper}),
     update: method<(request: UpdateConnectionRequest) => Promise<void>>({
         wrappers: commonWrapper,
@@ -63,10 +63,10 @@ export const ConnectionApiDefinition = {
         wrappers: commonWrapper,
         loading: (request) => request.id
     }),
-    connect: method<(request: FindByIdRequest) => Promise<void>>({
+    connect: method<(request: ByIdRequest) => Promise<void>>({
         wrappers: commonWrapper,
         loading: (request) => request.id
-    }), disconnect: method<(request: FindByIdRequest) => Promise<void>>({
+    }), disconnect: method<(request: ByIdRequest) => Promise<void>>({
         wrappers: commonWrapper,
         loading: (request) => request.id
     }),
@@ -74,7 +74,7 @@ export const ConnectionApiDefinition = {
 }
 export const ClientApiDefinition = {
     searchAndPage: method<(request: ListClientRequest) => Promise<PageData<ListClientResponse>>>({wrappers: commonWrapper}),
-    getById: method<(request: FindByIdRequest) => Promise<InfoClientResponse>>({wrappers: commonWrapper}),
+    getById: method<(request: ByIdRequest) => Promise<InfoClientResponse>>({wrappers: commonWrapper}),
     create: method<(request: CreateClientRequest) => Promise<number>>({wrappers: commonWrapper}),
     update: method<(request: UpdateClientRequest) => Promise<void>>({
         wrappers: commonWrapper,
@@ -91,7 +91,7 @@ export const ClientApiDefinition = {
 }
 export const MappingApiDefinition = {
     searchAndPage: method<(request: ListMappingRequest) => Promise<PageData<ListMappingResponse>>>({wrappers: commonWrapper}),
-    getById: method<(request: FindByIdRequest) => Promise<InfoMappingResponse>>({wrappers: commonWrapper}),
+    getById: method<(request: ByIdRequest) => Promise<InfoMappingResponse>>({wrappers: commonWrapper}),
     create: method<(request: CreateMappingRequest) => Promise<number>>({wrappers: commonWrapper}),
     update: method<(request: UpdateMappingRequest) => Promise<void>>({
         wrappers: commonWrapper,
@@ -112,6 +112,7 @@ export const ServerApiDefinition = {
     getNetworkIpInfos: method<() => Promise<NetworkIpInfo[]>>({wrappers: commonWrapper}),
     start: method<() => Promise<void>>({wrappers: commonWrapper}),
     stop: method<() => Promise<void>>({wrappers: commonWrapper}),
+    disconnect: method<(request:ByIdRequest) => Promise<void>>({wrappers: commonWrapper}),
 }
 export const ServiceApiDefinition = {
     connection: ConnectionApiDefinition,

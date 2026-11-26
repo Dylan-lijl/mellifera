@@ -104,6 +104,7 @@ export function initDB(sequelize: Sequelize) {
             timestamps: true,
             indexes: [
                 {
+                    name:"connection_id_remote_id",
                     unique: true,
                     fields: ['connectionId', 'remoteId'],
                 },

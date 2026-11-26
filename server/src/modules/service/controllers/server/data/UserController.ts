@@ -48,6 +48,9 @@ export const UserController = defineController("user",
                 throw new Error("No connection found for this request");
             }
             item.push(this.context);
+            //更新上下文信息
+            this.context.variable = {token: connection.token, id: connection.id};
+            this.context.available = true;
         }
 
         setContext(context: NetworkServerContext): void {

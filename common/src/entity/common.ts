@@ -8,11 +8,11 @@ export const DeleteByIdDefinition = z.object({
 export interface DeleteByIdRequest extends z.infer<typeof DeleteByIdDefinition> {
 }
 
-export const FindByIdDefinition = z.object({
+export const ByIdDefinition = z.object({
     id: z.int().min(1),
 }).describe("根据id查询");
 
-export interface FindByIdRequest extends z.infer<typeof FindByIdDefinition> {
+export interface ByIdRequest extends z.infer<typeof ByIdDefinition> {
 }
 export const TokenDefinition = z.object({
     token: z.string().min(1),

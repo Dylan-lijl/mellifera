@@ -448,6 +448,13 @@ function handleMappingEdit(row: ListMappingResponse) {
   mappingInfoDesc.value.data = row;
 }
 
+async function disconnectClient(line: ListClientResponse) {
+  if (store.apiState.service.server.disconnect.requesting.has(line.id)) {
+    return;
+  }
+  await store.service.server.disconnect({id: line.id}).errorMessage((r) => extractErrorMessage(r)).get();
+}
+
 function infoMappingSuccess(item: ListMappingResponse | null) {
   if (!item) {
     return;
@@ -471,7 +478,7 @@ function infoMappingSuccess(item: ListMappingResponse | null) {
 }
 
 function clientRowClassName(row: ListClientResponse) {
-  return store.syncData.server.connected.includes(row.id)
+  return store.syncData.server.connected.has(row.id)
       ? 'client-connected'
       : ''
 }
@@ -548,7 +555,7 @@ onMounted(async () => {
 
       <n-grid-item>
         <n-card size="small">
-          <n-statistic label="在线连接" :value="store.syncData.server.connected.length"/>
+          <n-statistic label="在线连接" :value="store.syncData.server.connected.size"/>
         </n-card>
       </n-grid-item>
 
@@ -704,10 +711,12 @@ onMounted(async () => {
               </template>
               删除后对应用户将无法连接,确定要删除吗?
             </n-popconfirm>
-            <n-popconfirm v-if="store.syncData.server.connected.includes(row.id)"
-            >
+            <n-popconfirm v-if="store.syncData.server.connected.has(row.id)"
+                          @positive-click="()=>disconnectClient(row)">
               <template #trigger>
-                <n-button type="error" quaternary>断开</n-button>
+                <n-button type="error" quaternary
+                          :loading="store.apiState.service.server.disconnect.requesting.has(row.id)">断开
+                </n-button>
               </template>
               断开用户连接同时会停止对应用户的映射服务,确定断开吗?
             </n-popconfirm>

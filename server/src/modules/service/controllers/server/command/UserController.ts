@@ -8,6 +8,7 @@ import {transportProtocolOptions} from "@mellifera/common/constant";
 import {defineController, RpcMethod} from "@/utils/network";
 import {registerControllers} from "@/network/RpcDispatcher";
 import controllers, {UserController as DataUserController} from '../data'
+import StateSyncManager from "@/StateSyncManager";
 
 export const UserController = defineController("user",
     class UserController implements ContextAware<NetworkServerContext> {
@@ -66,6 +67,7 @@ export const UserController = defineController("user",
                     // TODO: 还有监听回调处理
                     const result = await mapPortServiceManager.addListeners(
                         items.map((o) => ({
+                            clientId: client.id,
                             id: o.id,
                             port: o.listenPort,
                             skipPorts: o.disabledPorts,
@@ -99,6 +101,10 @@ export const UserController = defineController("user",
                     logger.error(`开启监听映射端口服务失败 (${client.id}):`, err);
                 }
             })();
+            //更新上下文信息
+            this.context.variable = {token: client.token, id: client.id};
+            this.context.available = true;
+            StateSyncManager.getState().server.connected.add(client.id);
         }
 
         setContext(context: NetworkServerContext): void {

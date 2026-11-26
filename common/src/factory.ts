@@ -37,7 +37,7 @@ export function createSyncState(): StateData {
             port: null,
             host: null,
             error: null,
-            connected: []
+            connected: new Set<number>(),
         },
         connection: {
             details: new Map<number, ConnectionRunData>(),

@@ -3,6 +3,7 @@ import controllers from '../data'
 import serverControllers from '../../server/data'
 import {defineController, RpcMethod} from "@/utils/network";
 import {createRpcProxy} from "@/network/RpcDispatcher";
+import other from "@/network/Other";
 
 export const ConnectionController = defineController("connection",
     class ConnectionController implements ContextAware<NetworkClientContext> {
@@ -57,7 +58,7 @@ export const ConnectionController = defineController("connection",
                         continue
                     }
                     const rpc = createRpcProxy(serverControllers, this.context);
-                    rpc.user.auth({token: 'x',type:2})
+                    rpc.user.auth({token: 'x', type: 2})
                 } else if (type === 2) {
                     //datagram
                     const channel = this.context.bootstrap.connectData(controllers, channelId, "datagram", host, port);
@@ -66,11 +67,18 @@ export const ConnectionController = defineController("connection",
                         continue
                     }
                     const rpc = createRpcProxy(serverControllers, this.context);
-                    rpc.user.auth({token: 'x',type:2})
+                    rpc.user.auth({token: 'x', type: 2})
                 } else {
                 }
             }
             return result;
+        }
+
+        @RpcMethod({ack: false})
+        async disconnect() {
+            if (this.context.variable?.id) {
+                await other.disconnectConnection(this.context.variable.id);
+            }
         }
 
         @RpcMethod()

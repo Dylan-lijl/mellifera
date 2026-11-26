@@ -14,7 +14,7 @@ export interface StateData {
         port: number | null,
         host: string|null,
         error: string | null,
-        connected:number[],
+        connected: Set<number>,
     },
     connection: {
         details: Map<number, ConnectionRunData>

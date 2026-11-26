@@ -456,6 +456,7 @@ export class RpcDispatcher {
      */
     private handleResponse(frame: ProtocolFrame): void {
         const pending = this.pending.get(frame.seq);
+
         /**
          * 可能是：
          * 1. ack=false 请求产生的未知方法错误响应
@@ -467,10 +468,9 @@ export class RpcDispatcher {
         }
 
         let response: RpcResponse;
+
         try {
-            response = this.codec.decode<RpcResponse>(
-                frame.payload
-            );
+            response = this.codec.decode<RpcResponse>(frame.payload);
         } catch (error) {
             this.rejectPending(
                 frame.seq,
@@ -487,12 +487,7 @@ export class RpcDispatcher {
             return;
         }
 
-        if (response.success) {
-            this.resolvePending(
-                frame.seq,
-                response.data
-            );
-        } else {
+        if (!response.success) {
             this.rejectPending(
                 frame.seq,
                 new RpcError(
@@ -500,7 +495,41 @@ export class RpcDispatcher {
                     response.error?.message ?? 'Remote RPC error'
                 )
             );
+            return;
         }
+
+        const result = response.data;
+
+        // 处理业务 Result
+        if (
+            result !== null &&
+            typeof result === 'object' &&
+            typeof result.code === 'number' &&
+            typeof result.message === 'string'
+        ) {
+            if (result.code !== 200) {
+                this.rejectPending(
+                    frame.seq,
+                    new RpcError(
+                        result.code,
+                        result.message
+                    )
+                );
+                return;
+            }
+
+            this.resolvePending(
+                frame.seq,
+                result.data
+            );
+            return;
+        }
+
+        // 普通 RPC 返回值
+        this.resolvePending(
+            frame.seq,
+            result
+        );
     }
 
     /**

@@ -17,18 +17,28 @@ export interface DatagramEndpoint {
 export type RpcHandler = (
     params?: unknown
 ) => Promise<Result<any> | void>
+
+export interface ContextVariable {
+    token: string
+    id: number
+}
+
 export interface NetworkContext {
     getAddress: () => ({ host: string, port: number }),
-    available:boolean,
-    dispatcher:RpcDispatcher,
-    rpcMap:Map<string,RpcProxy<unknown>>
+    available: boolean,
+    dispatcher: RpcDispatcher,
+    rpcMap: Map<string, RpcProxy<unknown>>,
+    variable?: ContextVariable
 }
-export interface NetworkServerContext extends NetworkContext{
+
+export interface NetworkServerContext extends NetworkContext {
     getEndpoint: () => NetEndpoint | DatagramEndpoint,
 }
+
 export interface NetworkClientContext extends NetworkServerContext {
-    bootstrap:TcpAndUdpBootstrap,
+    bootstrap: TcpAndUdpBootstrap,
 }
+
 export interface ContextAware<T extends NetworkContext> {
     setContext: (context: T) => void
 }
